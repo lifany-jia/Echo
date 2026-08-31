@@ -21,12 +21,15 @@ final class AudioAnalyzer: @unchecked Sendable {
         self.spectral = SpectralCentroid(fftSize: fftSize)
     }
 
-    /// 处理一帧 buffer（只支持 float32；当前 tap 固定安装标准 float32 格式）。
+    /// 处理一帧 buffer（只支持 float32）。
+    /// 采样率使用 buffer 的真实 `format.sampleRate`（真机硬件常为 48kHz），
+    /// 无法读取时回退到 init 时传入的 sampleRate。
     func process(buffer: AVAudioPCMBuffer) -> SoundFrame {
         let frameCount = Int(buffer.frameLength)
         guard frameCount > 0, buffer.format.commonFormat == .pcmFormatFloat32 else {
             return .zero
         }
+        let bufferSampleRate = buffer.format.sampleRate > 0 ? buffer.format.sampleRate : sampleRate
 
         var samplesPointer: UnsafeMutablePointer<Float>?
         var stride = 1
@@ -40,7 +43,7 @@ final class AudioAnalyzer: @unchecked Sendable {
         guard let base = samplesPointer else { return .zero }
 
         if stride == 1 {
-            return computeFrame(samples: base, count: frameCount)
+            return computeFrame(samples: base, count: frameCount, sampleRate: bufferSampleRate)
         }
 
         // 交织/多声道：去交织到复用 scratch（一次分配，之后复用）。
@@ -51,7 +54,7 @@ final class AudioAnalyzer: @unchecked Sendable {
             scratch[index] = base[index * stride]
         }
         return scratch.withUnsafeBufferPointer { buffer in
-            computeFrame(samples: buffer.baseAddress!, count: frameCount)
+            computeFrame(samples: buffer.baseAddress!, count: frameCount, sampleRate: bufferSampleRate)
         }
     }
 
@@ -61,7 +64,7 @@ final class AudioAnalyzer: @unchecked Sendable {
         sessionTime = 0
     }
 
-    private func computeFrame(samples: UnsafePointer<Float>, count: Int) -> SoundFrame {
+    private func computeFrame(samples: UnsafePointer<Float>, count: Int, sampleRate: Double) -> SoundFrame {
         let rms = SoundMath.rms(samples: samples, count: count)
         let energy = SoundMath.normalizedEnergy(rms: rms, noiseFloor: noiseFloor)
         let centroid = spectral.centroidHz(samples: samples, count: count, sampleRate: sampleRate)

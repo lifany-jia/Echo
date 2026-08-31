@@ -92,9 +92,11 @@ final class AudioEngineController {
         #endif
 
         let input = engine.inputNode
-        // 固定标准 float32 mono 44.1k，让 AudioAnalyzer 无需每次转换格式。
-        let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)
-            ?? validInputFormat(from: input)
+        // 必须使用输入节点的硬件原生格式安装 tap：
+        // 真机输入采样率通常是 48kHz，若强行装成 44.1kHz 会触发
+        // AVAEInternal 断言崩溃（模拟器硬件格式恰好匹配所以不暴露）。
+        // AudioAnalyzer 会按每帧 buffer 的真实 sampleRate 计算时长与频域重心。
+        let format = validInputFormat(from: input)
 
         if !hasTapInstalled {
             Self.installInputTap(input: input, format: format, bufferStats: bufferStats)
@@ -146,6 +148,7 @@ final class AudioEngineController {
         if hardware.sampleRate > 0, hardware.channelCount > 0 {
             return hardware
         }
+        // 兜底：标准 float32 mono 44.1k（正常只在无法读取硬件格式时出现）。
         return AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1) ?? hardware
     }
 
