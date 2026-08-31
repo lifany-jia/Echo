@@ -452,7 +452,7 @@
 - Stage 7 仍为 NOT STARTED/PAUSED。
 
 ### Commit
-- 待提交：`feat(plant): add sound tree audio memory`
+- 已随下一阶段一并提交：`03c672b feat(plant): add wild mode and sound memory`（含 tree grammar + audio memory + wild mode）
 
 ## 2026-08-31 18:30 — Stage 6.5+ Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2
 
@@ -495,7 +495,7 @@
 - 仓库根出现未跟踪的 `Design/`（并行工作产物），未纳入本次提交；除它外 git status 保持 clean。
 
 ### Commit
-- 见本阶段提交（`feat(plant): ...`）
+- `03c672b feat(plant): add wild mode and sound memory`
 
 ---
 

@@ -475,7 +475,7 @@ Commit: `feat(plant): add deterministic growth engine`
 
 ## 2026-08-31 — Stage 6.5+（Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2）
 
-Commit: `feat(plant): add wild mode and sound memory`
+Commit: `03c672b feat(plant): add wild mode and sound memory`
 
 ### Files
 - `Sources/Plant/GrowthMode.swift`：新增；normal / wild 枚举（displayName / isWild）。
