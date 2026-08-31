@@ -21,9 +21,13 @@ struct PlantRenderer: View {
     var body: some View {
         Canvas { context, size in
             let box = Self.stableViewport(for: structure.boundingBox)
+            // 以树干基部为锚点：贴底居中、向上生长（与 Design/assets/trees 概念树构图一致），
+            // 而不是把整棵树按包围盒居中（那样基部会悬空）。
+            let base = structure.trunk.start
             let scale = min(size.width / box.width, size.height / box.height) * 0.92
-            let offsetX = (size.width - box.width * scale) / 2 - box.minX * scale
-            let offsetY = (size.height - box.height * scale) / 2 - box.minY * scale
+            let baseTarget = CGPoint(x: size.width * 0.5, y: size.height * 0.965)
+            let offsetX = baseTarget.x - base.x * scale
+            let offsetY = baseTarget.y - base.y * scale
 
             func transform(_ point: CGPoint) -> CGPoint {
                 CGPoint(
@@ -32,13 +36,37 @@ struct PlantRenderer: View {
                 )
             }
 
-            let trunkColor = Color(red: 0.42, green: 0.29, blue: 0.16)
-            let branchColor = Color(red: 0.38, green: 0.26, blue: 0.14)
+            // 设计语言（深夜森林）：深林绿主干/枝条 + 琥珀花，参考 Design/assets/trees。
+            let trunkColor = Color(red: 0.15, green: 0.25, blue: 0.19)    // #263F30
+            let branchColor = Color(red: 0.20, green: 0.33, blue: 0.25)   // #335440
 
-            // 主干始终完整（植物一开始就是一棵小苗），底部粗、向上收细。
+            // 基部地面柔光（根部贴地感）。
+            let groundCenter = transform(CGPoint(x: base.x, y: base.y + 0.045))
+            context.fill(
+                Path(ellipseIn: CGRect(
+                    x: groundCenter.x - size.width * 0.17,
+                    y: groundCenter.y - size.height * 0.011,
+                    width: size.width * 0.34,
+                    height: size.height * 0.022
+                )),
+                with: .color(Color(red: 0.10, green: 0.20, blue: 0.14).opacity(0.55))
+            )
+            context.fill(
+                Path(ellipseIn: CGRect(
+                    x: groundCenter.x - size.width * 0.10,
+                    y: groundCenter.y - size.height * 0.006,
+                    width: size.width * 0.20,
+                    height: size.height * 0.012
+                )),
+                with: .color(Color(red: 0.18, green: 0.31, blue: 0.20).opacity(0.45))
+            )
+
+            // 主干从基部向上生长：起始是一株小苗（约 35%），随 revealSteps 拔高到完整。
+            // 底部粗、向上收细。
+            let trunkFraction = min(max(0.35 + 0.65 * (revealSteps / 3), 0), 1)
             Self.strokeTaperedBranch(
                 structure.trunk,
-                fraction: 1,
+                fraction: trunkFraction,
                 transform: transform,
                 scale: scale,
                 color: trunkColor,
@@ -187,15 +215,15 @@ struct PlantRenderer: View {
             )
             context.fill(
                 Path(ellipseIn: rect),
-                with: .color(Color(red: 0.32, green: 0.64, blue: 0.38).opacity(0.92 * grow))
+                with: .color(Color(red: 0.52, green: 0.70, blue: 0.52).opacity(0.90 * grow))
             )
 
         case .flower:
             let bloom = fraction * (1 + 0.12 * sin(min(fraction, 1) * .pi))
             let flowerSize = event.size * scale * bloom
             let petalColors = [
-                Color(red: 0.93, green: 0.67, blue: 0.48),
-                Color(red: 0.86, green: 0.42, blue: 0.45)
+                Color(red: 0.91, green: 0.64, blue: 0.29),
+                Color(red: 0.85, green: 0.48, blue: 0.32)
             ]
             let petalCount = 5
             for index in 0..<petalCount {
@@ -221,7 +249,7 @@ struct PlantRenderer: View {
                     width: flowerSize * 0.7,
                     height: flowerSize * 0.7
                 )),
-                with: .color(Color(red: 0.98, green: 0.86, blue: 0.45).opacity(0.95 * fraction))
+                with: .color(Color(red: 0.96, green: 0.89, blue: 0.63).opacity(0.95 * fraction))
             )
         }
     }
