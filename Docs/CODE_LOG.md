@@ -4,7 +4,7 @@
 
 ## 1. 当前架构状态
 
-**代码状态：Stage 5 DONE（Real-time Coupling；真实麦克风耦合 NOT RUN）**
+**代码状态：Stage 6 DONE（Forest Persistence；模拟器 kill/relaunch 实测 PASS）**
 
 当前结构：
 
@@ -18,6 +18,8 @@
 - `EchoForest.swiftpm/Sources/Audio/SpectralCentroid.swift`：Accelerate vDSP_DFT 频域重心（Frequency Proxy）。
 - `EchoForest.swiftpm/Sources/Audio/OnsetDetector.swift`：能量域 transient 检测（threshold + jump + cooldown）。
 - `EchoForest.swiftpm/Sources/Audio/AudioAnalyzer.swift`：分析层，AVAudioPCMBuffer → SoundFrame + SoundProfile。
+- `EchoForest.swiftpm/Sources/Persistence/ForestModel.swift`：森林数据模型（去重 add / 快照 / Codable）。
+- `EchoForest.swiftpm/Sources/Persistence/ForestStore.swift`：Codable + JSON 本地持久化（load / save / 损坏安全失败 / version 信封）。
 - `EchoForest.swiftpm/Sources/Plant/BranchModel.swift`：枝条 / 事件节点 / PlantStructure / 元数据 / boundingBox / visibleCounts。
 - `EchoForest.swiftpm/Sources/Plant/PlantModel.swift`：会话身份 + SoundProfile + PlantStructure。
 - `EchoForest.swiftpm/Sources/Plant/GrowthState.swift`：生长步骤（模拟 progression）。
@@ -34,6 +36,7 @@
 - `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：PlantRenderer + 实时 growthStep + Live Metrics 次要面板。
 - `EchoForest.swiftpm/Sources/Views/ResultView.swift`：PlantRenderer + 会话 SoundProfile DNA（明确叫 Spectral Centroid）。
 - `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift` / `Stage3MetricsSelfTest.swift` / `Stage4PlantSelfTest.swift` / `Stage5CouplingSelfTest.swift`：零依赖自测。
+- `EchoForest.swiftpm/SelfTests/Stage6ForestSelfTest.swift`：持久化确定性自测。
 - `EchoForest.swiftpm/Info.plist`：NSMicrophoneUsageDescription（尽力配置；官方路径为 Xcode capability）。
 
 Stage 6 持久化尚未实现；PitchDetector 未实现（以 Spectral Centroid 代理）。旧的 MockPlantModel / MockSoundProfile / MockPlantCanvas 已删除。
@@ -326,6 +329,39 @@ Commit: `feat(plant): couple live audio metrics to growth`
 ### Known risks
 - 150ms cadence 与平滑参数的观感需真机验证。
 - 真机首次真实音频 → 生长链路未实测（NOT RUN）。
+
+## 2026-08-31 — pending
+
+Commit: `feat(persistence): save and restore forest locally`
+
+### Files
+- `Sources/Persistence/ForestModel.swift`：新增；森林模型（plants / 去重 add / adding 快照 / Codable）。
+- `Sources/Persistence/ForestStore.swift`：新增；Codable + JSON（load / save / 空文件 / 损坏 / version）。
+- `Sources/Plant/PlantModel.swift`：Codable。
+- `Sources/Plant/BranchModel.swift`：BranchModel / PlantEvent / PlantStructure / GenerationMetadata / PlantEventType Codable（CGPoint 使用 SDK 自带 Codable）。
+- `Sources/Audio/SoundMetrics.swift`：SoundProfile Codable（只编码公开 summary 字段，私有累计字段不持久化）。
+- `Sources/App/EchoForestFlow.swift`：forest 模型化（plantedPlants 改为 forest.plants 计算属性；adoptForest 采用已保存快照）。
+- `Sources/App/EchoForestRootView.swift`：init 加载森林；plantCurrentInForest() 先保存成功再采用快照，失败弹提示停留 Result；autopilot 支持 ECHO_FOREST_AUTOPILOT_SESSIONS。
+- `SelfTests/Stage6ForestSelfTest.swift`：新增；持久化确定性自测。
+
+### Behavior change
+- “种进森林”后植物写入本地 JSON；重启 App 森林恢复。
+- 保存失败不假装成功（留在 Result 可重试）。
+
+### Design notes
+- 最小实现：只持久化 PlantModel 最终结构 + SoundProfile summary + version 信封；不保存 buffer / 音频 / 临时状态。
+- CGPoint 在 SDK 中已 Codable，几何以 Double 精确往返。
+- JSON 不允许 NaN / Infinity：编码失败即保存失败，保证磁盘数据合法（测试覆盖）。
+- 保存失败策略 B：保存成功后才正式加入森林。
+
+### Tests
+- Stage 6 persistence self-test PASS（round trip / 多棵 / 空 / 损坏 / 去重 / 极端几何 / NaN 防护）。
+- Stage 1–5 regression PASS；`swift build` PASS；xcodebuild simulator build PASS。
+- 模拟器 kill/relaunch：Plant A 保存→terminate→relaunch 恢复；Plant B 追加→terminate→relaunch 显示 A+B；clean install 空森林。
+
+### Known risks
+- 无 schema migration（version 信封 + 安全失败兜底）。
+- 真机未验证。
 
 ## 2026-08-31 — fc60fdf + 9b589dd（Runtime Gate 修复）
 

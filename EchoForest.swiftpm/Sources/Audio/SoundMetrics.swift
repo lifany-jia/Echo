@@ -72,3 +72,37 @@ struct SoundProfile: Equatable {
         spectralCentroidHz = centroidCount > 0 ? centroidSum / Double(centroidCount) : nil
     }
 }
+
+/// 只持久化公开的 summary 字段；私有累计字段不保存，解码后从零开始。
+extension SoundProfile: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case duration
+        case energy
+        case peakEnergy
+        case spectralCentroidHz
+        case onsetCount
+        case variation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            duration: try container.decodeIfPresent(TimeInterval.self, forKey: .duration) ?? 0,
+            energy: try container.decodeIfPresent(Double.self, forKey: .energy) ?? 0,
+            peakEnergy: try container.decodeIfPresent(Double.self, forKey: .peakEnergy) ?? 0,
+            spectralCentroidHz: try container.decodeIfPresent(Double.self, forKey: .spectralCentroidHz),
+            onsetCount: try container.decodeIfPresent(Int.self, forKey: .onsetCount) ?? 0,
+            variation: try container.decodeIfPresent(Double.self, forKey: .variation) ?? 0
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(duration, forKey: .duration)
+        try container.encode(energy, forKey: .energy)
+        try container.encode(peakEnergy, forKey: .peakEnergy)
+        try container.encode(spectralCentroidHz, forKey: .spectralCentroidHz)
+        try container.encode(onsetCount, forKey: .onsetCount)
+        try container.encode(variation, forKey: .variation)
+    }
+}

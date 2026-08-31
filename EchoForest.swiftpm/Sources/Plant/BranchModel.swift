@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// 一段枝条：纯数据，包含二次曲线控制点与生成元信息。
-struct BranchModel: Equatable {
+struct BranchModel: Equatable, Codable {
     var start: CGPoint
     var end: CGPoint
     var control: CGPoint
@@ -13,13 +13,13 @@ struct BranchModel: Equatable {
     var curvature: Double
 }
 
-enum PlantEventType: Equatable {
+enum PlantEventType: String, Codable, Equatable {
     case leaf
     case flower
 }
 
 /// 叶片 / 花等结构事件节点。
-struct PlantEvent: Equatable {
+struct PlantEvent: Equatable, Codable {
     var type: PlantEventType
     var position: CGPoint
     var size: Double
@@ -28,7 +28,7 @@ struct PlantEvent: Equatable {
 }
 
 /// 生成元信息（供测试断言与 UI 展示，不参与渲染几何）。
-struct GenerationMetadata: Equatable {
+struct GenerationMetadata: Equatable, Codable {
     var branchCount: Int
     var leafCount: Int
     var flowerCount: Int
@@ -44,7 +44,7 @@ struct GenerationMetadata: Equatable {
 
 /// 植物的完整纯数据结构：主干 + 分枝 + 事件 + 元数据。
 /// 坐标使用单位空间（约 0...1），Renderer 负责映射到 Canvas 尺寸。
-struct PlantStructure: Equatable {
+struct PlantStructure: Equatable, Codable {
     var scale: Double
     var trunk: BranchModel
     var branches: [BranchModel]

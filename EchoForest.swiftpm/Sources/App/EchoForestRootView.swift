@@ -2,11 +2,21 @@ import Foundation
 import SwiftUI
 
 struct EchoForestRootView: View {
-    @State private var flow = EchoForestFlow()
+    private let forestStore: ForestStore
+    @State private var flow: EchoForestFlow
     @State private var audio = AudioEngineController()
     @State private var growth = LiveGrowthController()
     @State private var isStarting = false
+    @State private var isSaving = false
     @State private var seedIssue: SeedAudioIssue?
+    @State private var saveIssue: String?
+
+    init() {
+        let store = ForestStore()
+        let loaded = (try? store.load().get()) ?? ForestModel()
+        forestStore = store
+        _flow = State(initialValue: EchoForestFlow(forest: loaded))
+    }
 
     var body: some View {
         Group {
@@ -59,8 +69,7 @@ struct EchoForestRootView: View {
                     plant: flow.currentPlant ?? growth.plant ?? PlantGenerator.makeSimulatedPlant(index: 1),
                     onPlantInForest: {
                         audio.stopListening()
-                        flow.plantCurrentInForest()
-                        growth.reset()
+                        plantCurrentInForest()
                     }
                 )
             }
@@ -97,6 +106,19 @@ struct EchoForestRootView: View {
         } message: {
             Text(seedIssue?.message ?? "")
         }
+        .alert(
+            "保存失败",
+            isPresented: Binding(
+                get: { saveIssue != nil },
+                set: { if !$0 { saveIssue = nil } }
+            )
+        ) {
+            Button("知道了") {
+                saveIssue = nil
+            }
+        } message: {
+            Text(saveIssue ?? "")
+        }
     }
 
     private func beginCreation() {
@@ -131,6 +153,25 @@ struct EchoForestRootView: View {
         }
     }
 
+    /// “种进森林”：先持久化成功，再采用森林快照并返回 Forest；
+    /// 保存失败 → 弹提示、停留在 Result（不假装已保存）。
+    private func plantCurrentInForest() {
+        guard !isSaving, let plant = flow.currentPlant else { return }
+        isSaving = true
+        defer { isSaving = false }
+
+        let candidate = flow.forest.adding(plant)
+        switch forestStore.save(candidate) {
+        case .success:
+            flow.adoptForest(candidate)
+            growth.reset()
+            NSLog("[PERSISTENCE] saved forest with \(candidate.plants.count) plants")
+        case .failure:
+            saveIssue = "本次未能保存到设备，请重试。"
+            NSLog("[PERSISTENCE] save failed")
+        }
+    }
+
     /// Runtime Gate 测试钩子：仅当环境变量 ECHO_FOREST_AUTOPILOT=1 时激活。
     /// 自动走 Seed → Growing（真实麦克风 12s）→ Result → Forest，便于无 UI 自动化时做真机/模拟器验证。
     private var autopilotEnabled: Bool {
@@ -141,7 +182,8 @@ struct EchoForestRootView: View {
         Task {
             NSLog("[AUTOPILOT] enabled")
             try? await Task.sleep(for: .seconds(0.8))
-            for sessionIndex in 1...2 {
+            let sessionCount = Int(ProcessInfo.processInfo.environment["ECHO_FOREST_AUTOPILOT_SESSIONS"] ?? "") ?? 2
+            for sessionIndex in 1...sessionCount {
                 flow.moveToSeed()
                 NSLog("[AUTOPILOT] session \(sessionIndex): moved to Seed")
                 try? await Task.sleep(for: .seconds(1))
@@ -180,7 +222,7 @@ struct EchoForestRootView: View {
                         "variation=\(String(format: "%.3f", plant.profile.variation))"
                     )
                     try? await Task.sleep(for: .seconds(4))
-                    flow.plantCurrentInForest()
+                    plantCurrentInForest()
                     NSLog("[AUTOPILOT] session \(sessionIndex) planted; total=\(flow.plantedPlants.count)")
                     try? await Task.sleep(for: .seconds(1))
                 } else {

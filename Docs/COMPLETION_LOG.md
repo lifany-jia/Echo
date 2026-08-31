@@ -22,7 +22,7 @@
 | 3 | Audio Metrics | DONE（代码层） | build PASS + 确定性 DSP 自测 PASS；真机音频集成 NOT RUN |
 | 4 | Growth Engine | DONE（代码层） | build PASS + generator 自测 PASS；实时耦合 NOT STARTED |
 | 5 | Real-time Coupling | DONE | 模拟器实测 PASS（声音驱动生长、频率响应、Result 真实 DNA）；真机耦合 NOT RUN |
-| 6 | Forest Persistence | NOT STARTED | NOT RUN |
+| 6 | Forest Persistence | DONE | build PASS + 持久化自测 PASS + kill/relaunch 实测 PASS |
 | 7 | Presentation Polish | NOT STARTED | NOT RUN |
 | 8 | Submission Hardening | NOT STARTED | NOT RUN |
 
@@ -346,3 +346,44 @@
 ### Commit
 - `fc60fdf fix(audio): isolate tap callback from main actor`
 - `9b589dd fix(plant): freeze result plant and add runtime autopilot hook`
+
+## 2026-08-31 13:44 — Stage 6 Forest Persistence
+
+**Status:** DONE（PASS，含模拟器 kill/relaunch 实测）
+
+### 完成
+- `Sources/Persistence/ForestModel.swift`：森林数据模型（plants 集合、按 UUID 去重 add、adding 快照、空森林）。
+- `Sources/Persistence/ForestStore.swift`：Codable + JSON 本地持久化（load / save / 文件缺失→空森林 / 损坏→安全失败 / version 信封）。
+- Codable：PlantModel / PlantStructure / BranchModel / PlantEvent / GenerationMetadata / PlantEventType / SoundProfile（只存公开 summary 字段）；CGPoint 使用 SDK 自带 Codable（编译期确认，无需自定义）。
+- 保存时机：只在“种进森林”点击时保存（先保存成功→采用森林快照→返回 Forest）；不在 Growing / 150ms / callback 保存。
+- 保存失败：弹“保存失败 / 本次未能保存到设备”，停留在 Result，不假装已保存（策略 B）。
+- 启动加载：RootView init 读取 ForestStore；首次启动 / 文件缺失→空森林，不弹错误。
+- 损坏数据：invalid JSON / truncated / incompatible version 均安全失败，不 crash。
+- 防重复：ForestModel.add 按 UUID 去重 + isSaving 防双击。
+- Forest 渲染继续复用 PlantRenderer。
+
+### 验证
+- Command: `swift build --package-path EchoForest.swiftpm`
+- Result: PASS（无警告）
+- Command: `swiftc ... SelfTests/Stage6ForestSelfTest.swift && 执行`
+- Result: PASS（Stage 6 persistence self-test PASS）
+- Notes: 覆盖 save/load round trip（id / profile / 结构 / 几何 / 事件一致）、多棵 + 顺序、空森林、invalid JSON / truncated / incompatible version、重复 UUID 去重、极端几何 encode/decode 后有限且一致、NaN profile 不允许进入 JSON。
+- Command: Stage 1–5 regression
+- Result: 全部 PASS
+- Command: `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build`
+- Result: PASS
+- Command: 模拟器 kill/relaunch 实测（iPhone 17 Pro / iOS 26.5）
+- Result: PASS
+  - clean install → 首屏空森林“这里还没有植物”
+  - 创建 Plant A → 种进森林（log: saved forest with 1 plants）→ `simctl terminate` → relaunch → 森林显示“已种下1棵植物 / 模拟植物1”
+  - 创建 Plant B → 种进森林（log: saved forest with 2 plants）→ `simctl terminate` → relaunch → 森林显示“已种下2棵植物 / 模拟植物1 / 模拟植物 2”
+  - 容器内 forest.json：version 1、plants=2、ID 唯一
+
+### 未完成 / 风险
+- 未实现 schema migration（有 version 信封，未来格式变化走安全失败）。
+- 保存失败时植物停留在 Result 可重试；无复杂恢复系统（符合 Stage 6 最小边界）。
+- 真机（iPhone）仍未验证；Stage 7+ 未开始。
+
+### Commit
+- `pending feat(persistence): save and restore forest locally`
+- `pending docs(handoff): record stage 6 completion`

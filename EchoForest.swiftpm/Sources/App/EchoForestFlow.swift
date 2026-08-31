@@ -1,7 +1,15 @@
 struct EchoForestFlow: Equatable {
     private(set) var stage: AppStage = .forest
-    private(set) var plantedPlants: [PlantModel] = []
+    private(set) var forest: ForestModel = ForestModel()
     private(set) var currentPlant: PlantModel?
+
+    init(forest: ForestModel = ForestModel()) {
+        self.forest = forest
+    }
+
+    var plantedPlants: [PlantModel] {
+        forest.plants
+    }
 
     mutating func moveToSeed() {
         currentPlant = nil
@@ -42,7 +50,17 @@ struct EchoForestFlow: Equatable {
     }
 
     mutating func plantCurrentInForest() {
-        plantedPlants.append(currentPlant ?? PlantGenerator.makeSimulatedPlant(index: plantedPlants.count + 1))
+        if let plant = currentPlant {
+            forest.add(plant)
+        }
+        currentPlant = nil
+        stage = .forest
+    }
+
+    /// UI 路径：用已经持久化成功的森林快照替换内存森林，
+    /// 避免保存失败后仍被当作“已保存”。
+    mutating func adoptForest(_ forest: ForestModel) {
+        self.forest = forest
         currentPlant = nil
         stage = .forest
     }

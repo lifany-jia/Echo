@@ -33,7 +33,7 @@
 - 声音分析（Stage 3）：DONE（代码层；真实麦克风 → analyzer 集成 NOT RUN）
 - 植物生成（Stage 4）：DONE（代码层；真实麦克风耦合 NOT STARTED）
 - 实时耦合（Stage 5）：DONE（代码层；真实麦克风耦合 NOT RUN）
-- 森林保存：NOT STARTED（Stage 6）
+- 森林保存（Stage 6）：DONE（模拟器 kill/relaunch 实测 PASS）
 - 视觉精修：NOT STARTED（Stage 7）
 - 提交包：NOT STARTED（Stage 8）
 
@@ -57,6 +57,14 @@ Runtime 修复记录：tap 闭包 MainActor 隔离崩溃（已修复）；Result
 
 环境注意：完整 Xcode 26.6 已安装但 active developer directory 仍为 Command Line Tools（sudo 需密码）；使用 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 覆盖可跑 xcodebuild / 模拟器。
 
+### Stage 6 持久化实测（2026-08-31，模拟器）
+
+- clean install → 首屏空森林（“这里还没有植物”）。
+- Plant A 种进森林（`[PERSISTENCE] saved forest with 1 plants`）→ `simctl terminate` → relaunch → “已种下1棵植物 / 模拟植物1”。
+- Plant B 追加（`saved forest with 2 plants`）→ terminate → relaunch → “已种下2棵植物 / 模拟植物1 / 模拟植物 2”。
+- 容器内 `forest.json`：version 1、plants=2、ID 唯一。
+- 持久化策略：只在“种进森林”保存；保存成功才采用快照；失败留在 Result 提示重试；损坏数据安全失败不 crash。
+
 权限配置注意：App Playground 的官方做法是在 Xcode 打开后，通过 Signing & Capabilities 添加 Microphone capability；仓库包根已附带 `Info.plist`（NSMicrophoneUsageDescription）作为尽力配置，需在 Xcode 中确认生效。
 
 真实状态以后以 `COMPLETION_LOG.md` 为准。
@@ -70,9 +78,9 @@ Runtime 修复记录：tap 闭包 MainActor 隔离崩溃（已修复）；Result
 2. Audio Input — DONE（代码层；真机麦克风 NOT RUN）
 3. Audio Metrics — DONE（代码层；真机音频集成 NOT RUN）
 4. Growth Engine — DONE（代码层；真实麦克风耦合 NOT STARTED）
-5. Real-time Coupling — DONE（代码层；真实麦克风耦合 NOT RUN）
-6. Forest Persistence — 下一项
-7. Presentation Polish
+5. Real-time Coupling — DONE（模拟器实测 PASS；真机耦合 NOT RUN）
+6. Forest Persistence — DONE（模拟器 kill/relaunch 实测 PASS）
+7. Presentation Polish — 下一项
 8. Submission Hardening
 
 不要跨层一次性实现大量功能。
@@ -99,15 +107,15 @@ docs(handoff): update current project state
 
 ## 当前最推荐的第一项代码任务
 
-Runtime Gate 已完成（模拟器实测）。下一项任务是 Stage 6 — Forest Persistence：
+Stage 6 已完成本地持久化。下一项任务是 Stage 7 — Presentation Polish：
 
-> 结果加入森林后本地保存轻量数据（PlantStructure / SoundProfile 的 Codable 或等价轻量方案），重启后仍可显示；保持 25MB 与离线约束。完成后按 `feat(persistence): ...` 提交。
+> 发芽、生长、叶片、开花、回到森林的动画与文字收敛；保持 3 分钟体验与离线约束。完成后按 `feat(rendering): ...` 提交。
 
 当前验证基线：
 
 - `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build` PASS
-- iOS 模拟器 Runtime Gate 实测 PASS（详见 COMPLETION_LOG）
-- `swift build --package-path EchoForest.swiftpm` PASS；Stage 1–5 self-test 全部 PASS
+- 模拟器 Runtime Gate + Stage 6 kill/relaunch 实测 PASS（详见 COMPLETION_LOG）
+- `swift build --package-path EchoForest.swiftpm` PASS；Stage 1–6 self-test 全部 PASS
 - 真机、拍手/onset、音频中断处理：NOT RUN / 未实现
 
 ## 绝对不要忘记
