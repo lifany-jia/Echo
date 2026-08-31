@@ -1,20 +1,41 @@
 // swift-tools-version: 6.0
 
 import PackageDescription
+import AppleProductTypes
 
 let package = Package(
     name: "EchoForest",
     platforms: [
-        .iOS(.v17),
-        .macOS(.v14)
+        .iOS(.v17)
     ],
     products: [
-        .executable(name: "EchoForest", targets: ["EchoForest"])
+        .iOSApplication(
+            name: "EchoForest",
+            targets: ["AppModule"],
+            bundleIdentifier: "com.echoforest.playground",
+            teamIdentifier: nil,
+            displayVersion: "1.0",
+            bundleVersion: "1",
+            appIcon: .placeholder(icon: .leaf),
+            accentColor: .presetColor(.green),
+            supportedDeviceFamilies: [
+                .phone,
+                .pad
+            ],
+            supportedInterfaceOrientations: [
+                .portrait,
+                .landscapeRight,
+                .landscapeLeft,
+                .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+            ],
+            additionalInfoPlistContentFilePath: "Info.plist"
+        )
     ],
     targets: [
         .executableTarget(
-            name: "EchoForest",
-            path: "Sources"
+            name: "AppModule",
+            path: "."
         )
-    ]
+    ],
+    swiftLanguageVersions: [.v6]
 )

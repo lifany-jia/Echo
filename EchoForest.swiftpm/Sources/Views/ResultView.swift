@@ -20,7 +20,7 @@ struct ResultView: View {
             VStack(spacing: 14) {
                 ScrollView {
                     VStack(spacing: 10) {
-                        PlantRenderer(structure: plant.structure)
+                        PlantArtworkView(plant: plant, mode: mode)
                             .frame(width: 260, height: 250)
                             .padding(.top, 4)
 

@@ -27,7 +27,7 @@ struct PlantDetailView: View {
                     Spacer()
                 }
 
-                PlantRenderer(structure: record.plant.structure)
+                PlantArtworkView(plant: record.plant, mode: record.growthMode)
                     .frame(width: 270, height: 280)
                     .scaleEffect(isPlaying ? 1.018 : 1)
                     .brightness(isPlaying ? 0.035 : 0)
