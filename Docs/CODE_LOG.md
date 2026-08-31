@@ -290,7 +290,7 @@ Commit: `feat(audio): add real-time sound metrics`
 - 真实音频集成未实测；Spectral Centroid 不是真实 pitch。
 - 音频会话中断处理未实现。
 
-## 2026-08-31 — pending
+## 2026-08-31 — e466444
 
 Commit: `feat(plant): couple live audio metrics to growth`
 

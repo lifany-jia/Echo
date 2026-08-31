@@ -295,5 +295,4 @@
 - 持久化、录音回放、动画 polish 均未实现（Stage 6+）。
 
 ### Commit
-- `pending feat(plant): couple live audio metrics to growth`
-- `pending docs(handoff): record stage 5 commit`
+- `e466444 feat(plant): couple live audio metrics to growth`
