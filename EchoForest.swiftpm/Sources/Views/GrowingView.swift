@@ -5,6 +5,10 @@ struct GrowingView: View {
     let isListening: Bool
     let receivedBufferCount: Int
     let lastFrameLength: Int?
+    let energy: Double
+    let spectralCentroidHz: Double?
+    let onsetCount: Int
+    let duration: TimeInterval
     let onFinish: () -> Void
     let onCancel: () -> Void
 
@@ -19,7 +23,7 @@ struct GrowingView: View {
                         .font(.largeTitle.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    Text("植物视觉仍为静态模拟，不随声音变化。")
+                    Text("Plant growth is still mock · 植物生长仍为 mock（Stage 3）")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.66))
                 }
@@ -27,10 +31,15 @@ struct GrowingView: View {
                 ListeningBadge(isListening: isListening)
 
                 MockPlantCanvas(plant: plant, progress: 0.72, showsBloom: false)
-                    .frame(maxHeight: 380)
-                    .padding(.vertical, 12)
+                    .frame(maxHeight: 300)
+                    .padding(.vertical, 6)
 
-                MockGrowthMeter(profile: plant.profile)
+                LiveMetricsPanel(
+                    energy: energy,
+                    spectralCentroidHz: spectralCentroidHz,
+                    onsetCount: onsetCount,
+                    duration: duration
+                )
 
                 Text("Stage 2 链路验证 · 收到 buffer: \(receivedBufferCount) · 最近 frameLength: \(lastFrameLength.map(String.init) ?? "-")")
                     .font(.caption)
@@ -73,28 +82,51 @@ private struct ListeningBadge: View {
     }
 }
 
-private struct MockGrowthMeter: View {
-    let profile: MockSoundProfile
+private struct LiveMetricsPanel: View {
+    let energy: Double
+    let spectralCentroidHz: Double?
+    let onsetCount: Int
+    let duration: TimeInterval
 
     var body: some View {
-        VStack(spacing: 10) {
-            MockMeterRow(label: "Mock Energy", value: profile.energy)
-            MockMeterRow(label: "Mock Variation", value: profile.variation)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Live Metrics (Stage 3)")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            MetricBarRow(label: "Energy", value: energy)
+            MetricTextRow(
+                label: "Spectral Centroid",
+                value: spectralCentroidHz.map { String(format: "%.0f Hz", $0) } ?? "—"
+            )
+            MetricTextRow(label: "Onset count", value: "\(onsetCount)")
+            MetricTextRow(label: "Duration", value: String(format: "%.1f s", duration))
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.white.opacity(0.13), lineWidth: 1)
+        }
     }
 }
 
-private struct MockMeterRow: View {
+private struct MetricBarRow: View {
     let label: String
     let value: Double
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.white.opacity(0.72))
+            HStack {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.72))
+                Spacer()
+                Text(String(format: "%.2f", min(max(value, 0), 1)))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.6))
+            }
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
@@ -107,6 +139,23 @@ private struct MockMeterRow: View {
                 }
             }
             .frame(height: 8)
+        }
+    }
+}
+
+private struct MetricTextRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.white.opacity(0.72))
+            Spacer()
+            Text(value)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.white.opacity(0.86))
         }
     }
 }

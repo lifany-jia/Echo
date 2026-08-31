@@ -4,7 +4,7 @@
 
 ## 1. 当前架构状态
 
-**代码状态：Stage 2 DONE（Audio Input；真实麦克风运行时 NOT RUN）**
+**代码状态：Stage 3 DONE（Audio Metrics；真实麦克风 → analyzer 集成 NOT RUN）**
 
 当前结构：
 
@@ -13,16 +13,21 @@
 - `EchoForest.swiftpm/Sources/App/EchoForestFlow.swift`：内存流程状态机，持有 `stage / plantedPlants / currentPlant`，负责进入 Seed、开始/结束创作、种入森林、二次创作重置。
 - `EchoForest.swiftpm/Sources/Audio/AudioInputState.swift`：纯状态模型（权限四态 + 会话阶段 + 轻量计数），独立于 AVFoundation，供零依赖自测。
 - `EchoForest.swiftpm/Sources/Audio/AudioEngineController.swift`：AVAudioEngine 输入链路控制器（@MainActor @Observable）。UI 只观察其状态，不直接操作 engine。
+- `EchoForest.swiftpm/Sources/Audio/SoundMetrics.swift`：SoundFrame（即时）+ SoundProfile（会话累计）指标模型。
+- `EchoForest.swiftpm/Sources/Audio/SoundMath.swift`：纯 DSP 数学层（RMS / normalized energy / clamp），无 AVFoundation 依赖。
+- `EchoForest.swiftpm/Sources/Audio/SpectralCentroid.swift`：Accelerate vDSP_DFT 频域重心（Frequency Proxy）。
+- `EchoForest.swiftpm/Sources/Audio/OnsetDetector.swift`：能量域 transient 检测（threshold + jump + cooldown）。
+- `EchoForest.swiftpm/Sources/Audio/AudioAnalyzer.swift`：分析层，AVAudioPCMBuffer → SoundFrame + SoundProfile。
 - `EchoForest.swiftpm/Sources/App/EchoForestRootView.swift`：持有 flow + audio；Seed “开始创作”异步执行权限 → startListening → 成功才进入 Growing；拒绝/失败弹 alert。
 - `EchoForest.swiftpm/Sources/Views/SeedView.swift`：种子页；按钮“开始创作”，提示首次请求权限。
-- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：Listening 徽标 + buffer 链路计数 + 取消按钮；植物视觉仍为 mock。
+- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：Listening 徽标 + buffer 链路计数 + Live Metrics 面板（Energy / Spectral Centroid / Onset count / Duration）+ 取消按钮；植物视觉仍为 mock。
 - `EchoForest.swiftpm/Sources/Models/MockSoundProfile.swift` / `MockPlantModel.swift`：mock 数据（Stage 1 保留）。
 - `EchoForest.swiftpm/Sources/Rendering/MockPlantCanvas.swift`：Canvas 程序化 mock 植物（Stage 1 保留）。
 - `EchoForest.swiftpm/Sources/Views/ForestView.swift` / `ResultView.swift`：森林 / 结果页（Stage 1 保留，Result 继续展示 Mock Sound DNA）。
-- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift`：零依赖自测。
+- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift` / `Stage3MetricsSelfTest.swift`：零依赖自测。
 - `EchoForest.swiftpm/Info.plist`：NSMicrophoneUsageDescription（尽力配置；官方路径为 Xcode capability）。
 
-Stage 3+ 模块（AudioAnalyzer / PitchDetector / OnsetDetector / Plant / Persistence）尚未创建。
+Stage 4+ 模块（Plant / Persistence）尚未创建；PitchDetector 未实现（以 Spectral Centroid 代理）。
 
 ---
 
@@ -238,3 +243,40 @@ Commit: `feat(audio): add microphone input pipeline`
 - 真机/模拟器上 engine 启动、buffer 到达、权限弹窗行为未实测。
 - Info.plist / capability 生效未验证。
 - 音频会话中断（后台、媒体服务重置）处理未实现。
+
+## 2026-08-31 — pending
+
+Commit: `feat(audio): add real-time sound metrics`
+
+### Files
+- `Sources/Audio/SoundMetrics.swift`：新增；SoundFrame（即时指标）+ SoundProfile（会话累计指标）。
+- `Sources/Audio/SoundMath.swift`：新增；RMS / normalized energy / clamp 纯函数层。
+- `Sources/Audio/SpectralCentroid.swift`：新增；Accelerate vDSP_DFT 频域重心（Frequency Proxy）。
+- `Sources/Audio/OnsetDetector.swift`：新增；能量域 onset 检测。
+- `Sources/Audio/AudioAnalyzer.swift`：新增；AVAudioPCMBuffer → SoundFrame + SoundProfile 分析层。
+- `Sources/Audio/AudioEngineController.swift`：tap 固定标准 float32 mono 44.1k；callback 内运行 analyzer 并写锁保护 snapshot；暴露 latestFrame / profile 供 UI 低频读取。
+- `Sources/Views/GrowingView.swift`：MockGrowthMeter 替换为 Live Metrics 面板；明确标注植物仍为 mock。
+- `Sources/App/EchoForestRootView.swift`：向 GrowingView 传入实时指标。
+- `SelfTests/Stage3MetricsSelfTest.swift`：新增；确定性 DSP 自测。
+
+### Behavior change
+- Growing 页展示真实 Energy / Spectral Centroid / Onset count / Duration；植物视觉与 Result Sound DNA 保持 mock。
+
+### Design notes
+- 指标分两层：SoundFrame（instantaneous）与 SoundProfile（accumulated / session），Result 暂不接真实 summary，避免 Stage 4 越界。
+- 频率维度选择 Spectral Centroid（频域重心）而非 pitch detector：成本低、稳定、可解释，符合 AGENTS.md 允许的降级路径；代码与 UI 一律叫 Spectral Centroid / 频域重心，不冒充 Pitch。
+- RMS 手动遍历（跳过 NaN / infinity，空 buffer 返回 0）；FFT 用 vDSP_DFT（Accelerate），工作缓冲 init 一次性分配、callback 零分配。
+- Energy = clamp01(sqrt((rms - noiseFloor) / (1 - noiseFloor)))；noiseFloor 以下为 0。
+- Onset 需同时满足 energy threshold、相对上一帧 jump、cooldown，避免稳定音乱触发与单爆音重复触发。
+- 线程安全：tap callback 在 OSAllocatedUnfairLock 内做轻量 DSP 并写入 snapshot；主线程 500ms 定时任务把 snapshot 同步到 @Observable 属性，保持 “callback 高频 → snapshot → 低频 UI 刷新”。
+- SpectralCentroid / AudioAnalyzer 标为 @unchecked Sendable：只从单一音频线程访问，由调用方锁保护。
+
+### Tests
+- `swift build --package-path EchoForest.swiftpm` PASS。
+- Stage 3 metrics self-test PASS（Energy / Frequency / Onset / Session profile / 稳定性）。
+- Stage 1 / Stage 2 regression PASS。
+- 真实麦克风 → analyzer 集成：NOT RUN（Command Line Tools 环境）。
+
+### Known risks
+- 真实音频集成未实测；Spectral Centroid 不是真实 pitch。
+- 音频会话中断处理未实现。

@@ -19,7 +19,7 @@
 | 0 | Build Baseline | DONE | `swift build --package-path EchoForest.swiftpm` PASS x2 |
 | 1 | Static Experience | DONE | `swift build` PASS + flow self-test PASS |
 | 2 | Audio Input | DONE（代码层） | build PASS + 状态自测 PASS；真机麦克风 NOT RUN |
-| 3 | Audio Metrics | NOT STARTED | NOT RUN |
+| 3 | Audio Metrics | DONE（代码层） | build PASS + 确定性 DSP 自测 PASS；真机音频集成 NOT RUN |
 | 4 | Growth Engine | NOT STARTED | NOT RUN |
 | 5 | Real-time Coupling | NOT STARTED | NOT RUN |
 | 6 | Forest Persistence | NOT STARTED | NOT RUN |
@@ -172,3 +172,44 @@
 
 ### Commit
 - `fe6142d feat(audio): add microphone input pipeline`
+
+## 2026-08-31 11:47 — Stage 3 Audio Metrics
+
+**Status:** DONE（代码层；真实麦克风 → analyzer 集成运行时 NOT RUN）
+
+### 完成
+- 建立指标模型：`SoundFrame`（即时 / 当前帧指标）+ `SoundProfile`（会话累计指标：duration / energy / peakEnergy / spectralCentroidHz / onsetCount / variation）。区分 instantaneous 与 accumulated。
+- 建立独立分析层 `AudioAnalyzer`（AVAudioPCMBuffer → SoundFrame + SoundProfile）；AudioEngineController 不再承担 DSP。
+- Step A — RMS / Energy：从 PCM float sample 真实计算 RMS（跳过 NaN / infinity，空 / 全非法返回 0），noiseFloor 以下能量为 0，sqrt 塑形后 clamp 到 0...1。
+- Step B — Frequency Proxy：用 Accelerate `vDSP_DFT` 实现 Spectral Centroid（频域重心），明确命名为 frequency proxy，不冒充 Pitch；跳过 DC 避免低频偏置；静音返回 nil。
+- Step C — Onset：能量域 transient 检测（threshold + jumpThreshold + cooldown），稳定音不持续乱触发，单次爆音不重复触发。
+- Growing 页展示真实 Live Metrics（Energy / Spectral Centroid / Onset count / Duration），并明确标注 “Plant growth is still mock（Stage 3）”；植物视觉不随指标变化。
+- 实时线程安全：tap callback 在锁内做轻量 DSP 并写线程安全 snapshot；主线程 500ms 低频同步到 SwiftUI，无每 buffer 高频刷新、无文件 IO、无 JSON、无植物逻辑。
+- Result 页继续使用 MockSoundProfile 并明确标注 mock；未提前接真实 summary。
+- tap 格式固定为标准 float32 mono 44.1k，分析层无需每帧格式转换。
+
+### 验证
+- Command: `swift build --package-path EchoForest.swiftpm`
+- Result: PASS
+- Notes: Swift 6.3.3 / arm64 macOS；Build complete，无警告。
+- Command: `swiftc -framework Accelerate <SoundMath/SoundMetrics/SpectralCentroid/OnsetDetector> SelfTests/Stage3MetricsSelfTest.swift -o /tmp/stage3_metrics_self_test && 执行`
+- Result: PASS（Stage 3 metrics self-test PASS）
+- Notes: 覆盖 Energy（silence / 固定幅值 / 低幅值 / 高幅值 / clamp / noise floor / NaN 稳定性 / 空 buffer）、Frequency（低频 / 中频 / 高频 bin 对齐正弦，重心误差 < 2 Hz；静音返回 nil）、Onset（silence / steady / transient / cooldown 内与 cooldown 后）、Session profile 累计、输出无 NaN / infinity。
+- Command: Stage 1 regression（Stage1FlowSelfTest）
+- Result: PASS
+- Command: Stage 2 regression（Stage2AudioSelfTest）
+- Result: PASS
+- Notes: permission denied path、start / stop、二次 start、状态重置均未破坏。
+- Command: 真实麦克风 → analyzer 集成（App Playground 图形运行 + 授权麦克风）
+- Result: NOT RUN
+- Notes: 当前环境只有 Command Line Tools，无法运行 App Playground / 授权麦克风。确定性 DSP 测试 PASS 不代表真实声音分析已验证。
+
+### 未完成 / 风险
+- 真实麦克风 → analyzer 集成运行时 NOT RUN。
+- 频率代理是 Spectral Centroid，不是 pitch；后续如需要真实音高，Stage 3 方案需替换或补充。
+- 音频会话中断（后台、媒体服务重置）仍未处理。
+- 植物生长映射、PlantGenerator、BranchModel、Growth Engine、持久化均未实现（Stage 4+）。
+
+### Commit
+- `pending feat(audio): add real-time sound metrics`
+- `pending docs(handoff): record stage 3 commit`

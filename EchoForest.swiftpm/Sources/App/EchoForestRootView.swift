@@ -32,6 +32,10 @@ struct EchoForestRootView: View {
                     isListening: audio.isListening,
                     receivedBufferCount: audio.receivedBufferCount,
                     lastFrameLength: audio.lastFrameLength,
+                    energy: audio.latestFrame.energy,
+                    spectralCentroidHz: audio.latestFrame.spectralCentroidHz,
+                    onsetCount: audio.profile.onsetCount,
+                    duration: audio.profile.duration,
                     onFinish: {
                         audio.stopListening()
                         flow.finishMockGrowing()

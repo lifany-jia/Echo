@@ -30,14 +30,14 @@
 - SwiftPM App Playground：DONE
 - Stage 1 静态体验闭环（Forest → Seed → Growing → Result → Forest）：DONE
 - 音频输入（Stage 2）：DONE（代码层；真实麦克风运行时 NOT RUN）
-- 声音分析：NOT STARTED（Stage 3）
+- 声音分析（Stage 3）：DONE（代码层；真实麦克风 → analyzer 集成 NOT RUN）
 - 植物程序化生成：NOT STARTED（Stage 4）
 - 实时耦合：NOT STARTED（Stage 5）
 - 森林保存：NOT STARTED（Stage 6）
 - 视觉精修：NOT STARTED（Stage 7）
 - 提交包：NOT STARTED（Stage 8）
 
-Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy / Rhythm / Variation）、`MockPlantModel`、`MockPlantCanvas` 均为静态模拟。Stage 2 已接入 AVAudioEngine 输入链路与权限流程，但唯一真实能力是 `Microphone → AVAudioEngine → AVAudioPCMBuffer`；RMS / FFT / Pitch / Onset / 真实 Sound DNA / 生长映射均未实现。森林状态仅存在于当前运行周期内存，无持久化。
+Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy / Rhythm / Variation）、`MockPlantModel`、`MockPlantCanvas` 均为静态模拟。Stage 2 已接入 AVAudioEngine 输入链路与权限流程。Stage 3 已实现真实指标：RMS / Energy（noise floor + normalize + clamp）、Spectral Centroid（频率代理，非 Pitch）、Onset（能量域 + cooldown），Growing 页展示 Live Metrics。Result Sound DNA 仍为 mock；植物生长映射、PlantGenerator、Growth Engine、持久化均未实现。森林状态仅存在于当前运行周期内存，无持久化。
 
 权限配置注意：App Playground 的官方做法是在 Xcode 打开后，通过 Signing & Capabilities 添加 Microphone capability；仓库包根已附带 `Info.plist`（NSMicrophoneUsageDescription）作为尽力配置，需在 Xcode 中确认生效。
 
@@ -50,8 +50,8 @@ Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy /
 0. Build Baseline — DONE
 1. Static Experience — DONE（静态 mock 闭环，未接音频）
 2. Audio Input — DONE（代码层；真机麦克风 NOT RUN）
-3. Audio Metrics — 下一项
-4. Growth Engine
+3. Audio Metrics — DONE（代码层；真机音频集成 NOT RUN）
+4. Growth Engine — 下一项
 5. Real-time Coupling
 6. Forest Persistence
 7. Presentation Polish
@@ -81,16 +81,16 @@ docs(handoff): update current project state
 
 ## 当前最推荐的第一项代码任务
 
-Stage 2 已完成代码层输入链路。下一项任务是 Stage 3 — Audio Metrics：
+Stage 3 已完成代码层指标。下一项任务是 Stage 4 — Growth Engine：
 
-> 用纯函数/可注入输入实现并验证 RMS / 能量，再增加 pitch 或频域代理指标，最后增加 onset；继续沿用零依赖自测模式。完成后按 `feat(audio): ...` / `test(audio): ...` 提交。
+> 先不接真实音频：用固定 SoundProfile 模拟参数生成程序化植物（PlantGenerator / BranchModel / GrowthState），验证 A/B/C 固定输入形态可分辨、固定 seed 可重复；再接真实指标。完成后按 `feat(plant): ...` 提交。
 
-Stage 2 验证：
+Stage 3 验证：
 
 - `swift build --package-path EchoForest.swiftpm` PASS
-- Stage 1 flow self-test PASS（回归）
-- Stage 2 audio state self-test PASS
-- 真实麦克风 callback：NOT RUN（当前机器 active developer directory 是 Command Line Tools，无法运行 App Playground / 授权麦克风）
+- Stage 3 metrics self-test PASS（Energy / Frequency / Onset / Session profile）
+- Stage 1 / Stage 2 regression PASS
+- 真实麦克风 → analyzer 集成：NOT RUN（当前机器 active developer directory 是 Command Line Tools，无法运行 App Playground / 授权麦克风）
 
 ## 绝对不要忘记
 
