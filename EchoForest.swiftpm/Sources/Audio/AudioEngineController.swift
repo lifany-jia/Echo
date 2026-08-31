@@ -164,12 +164,13 @@ final class AudioEngineController {
         hasTapInstalled = false
     }
 
-    /// 500ms 定时把音频线程上的 metrics snapshot 同步到可观察状态，避免每个 buffer 触发 SwiftUI 刷新。
+    /// 约 6.7Hz（150ms）定时把音频线程上的 metrics snapshot 同步到可观察状态；
+    /// 该 cadence 同时被实时耦合使用，避免每个 buffer 触发 SwiftUI 刷新。
     private func startStatsRefresh() {
         statsRefreshTask?.cancel()
         statsRefreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .milliseconds(150))
                 guard let self else { return }
                 self.syncMetricsSnapshot()
             }

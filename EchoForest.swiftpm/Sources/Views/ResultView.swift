@@ -21,7 +21,7 @@ struct ResultView: View {
                     .font(.largeTitle.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text("由模拟 SoundProfile 生成 · 未接麦克风")
+                Text("由实时声音耦合生长（Stage 5）")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white.opacity(0.64))
 
@@ -49,13 +49,13 @@ private struct SoundDNAView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Sound DNA · Simulated SoundProfile (mock)")
+            Text("Sound DNA · 会话 SoundProfile")
                 .font(.headline)
                 .foregroundStyle(.white)
 
             DNABarRow(label: "Energy", value: profile.energy)
             DNATextRow(
-                label: "Spectral Centroid",
+                label: "Spectral Centroid (Frequency)",
                 value: profile.spectralCentroidHz.map { String(format: "%.0f Hz", $0) } ?? "—"
             )
             DNATextRow(label: "Onset", value: "\(profile.onsetCount)")

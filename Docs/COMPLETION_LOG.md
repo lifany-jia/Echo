@@ -21,7 +21,7 @@
 | 2 | Audio Input | DONE（代码层） | build PASS + 状态自测 PASS；真机麦克风 NOT RUN |
 | 3 | Audio Metrics | DONE（代码层） | build PASS + 确定性 DSP 自测 PASS；真机音频集成 NOT RUN |
 | 4 | Growth Engine | DONE（代码层） | build PASS + generator 自测 PASS；实时耦合 NOT STARTED |
-| 5 | Real-time Coupling | NOT STARTED | NOT RUN |
+| 5 | Real-time Coupling | DONE（代码层） | build PASS + coupling 自测 PASS；真实麦克风耦合 NOT RUN |
 | 6 | Forest Persistence | NOT STARTED | NOT RUN |
 | 7 | Presentation Polish | NOT STARTED | NOT RUN |
 | 8 | Submission Hardening | NOT STARTED | NOT RUN |
@@ -256,3 +256,44 @@
 
 ### Commit
 - `c26e338 feat(plant): add deterministic growth engine`
+
+## 2026-08-31 12:15 — Stage 5 Real-time Coupling
+
+**Status:** DONE（代码层）；REAL MICROPHONE COUPLING NOT RUN
+
+### 完成
+- 建立实时耦合层：
+  - `Sources/Plant/GrowthSession.swift`：纯核心，SoundFrame 序列 → 逐步生长的 PlantModel（可零依赖确定性自测）。
+  - `Sources/App/LiveGrowthController.swift`：@MainActor @Observable 协调层，持有 GrowthSession，按固定 cadence 读取 metrics 并推进；View 不承担耦合逻辑。
+- 增量生长：每 tick 只追加新枝 / 新事件，不每 buffer 重建整棵树；映射公式仍集中在 PlantGenerator（新增 initialStructure / appendGrowthStep / appendFlower，与 Stage 4 共享 normalize + makeTrunk）。
+- 实时映射：
+  - Energy → 新枝粗细 / 生长速度（growthAccumulator 随 energy·dt 累积）
+  - Spectral Centroid → 新增长方向 / 张角（不叫 Pitch）
+  - Variation → 后续弯曲（基于会话 / 平滑稳定值）
+  - Onset → 每帧一次开花事件（analyzer cooldown 防重复）
+  - Duration → 生长预算 / 最大步骤上限（maxSteps = 16）
+- 平滑与门控：EMA（Energy / Centroid / Variation）；平滑 energy 低于 activationThreshold（0.06）时完全不推进，静音时势能缓慢衰减。
+- 解耦：audio callback 仍只做 DSP + 线程安全 snapshot；RootView 以 150ms（约 6.7Hz）cadence 读取 latestFrame / profile 驱动 GrowthSession；UI 通过 @Observable 低频刷新。
+- Growing：植物主视觉为实时生长模型（PlantRenderer + growthStep），Live Metrics 压缩为次要面板。
+- Result：冻结 Growing 阶段的最终 PlantModel（不重新生成），Sound DNA 切换为真实会话 SoundProfile（Energy / Spectral Centroid / Onset / Duration / Variation，明确叫 Spectral Centroid 而非 Pitch）。
+- 第二次创作：新 GrowthSession（植物 / GrowthState / 平滑值 / onset 计数 / 步骤全部重置），flow 使用 startGrowing(plant:) / finishGrowing(plant:) 保证同一棵植物贯通。
+
+### 验证
+- Command: `swift build --package-path EchoForest.swiftpm`
+- Result: PASS（无警告）
+- Command: `swiftc <SoundMetrics + Plant 模块源文件> SelfTests/Stage5CouplingSelfTest.swift && 执行`
+- Result: PASS（Stage 5 coupling self-test PASS）
+- Notes: Scenario A 静音不增长；B 大声比小声长更多且第一代新枝更粗；C 高低 centroid 后续方向明显不同；D onset 增加花事件、无 onset 不加；E expressive 比 steady 弯曲更多；F 相同帧序列 + 相同 seed 最终结构一致；步骤 / 分支 / 花数量有上限；新 session 干净重置。
+- Command: Stage 1 / Stage 2 / Stage 3 / Stage 4 regression
+- Result: 全部 PASS
+- Command: 真实 App Playground / microphone runtime
+- Result: NOT RUN（Command Line Tools 环境）
+
+### 未完成 / 风险
+- 真实麦克风 → 实时生长耦合 NOT RUN（需 Xcode + 设备）。
+- 生长 cadence（150ms）与 smoothing 参数需真机手感验证。
+- 持久化、录音回放、动画 polish 均未实现（Stage 6+）。
+
+### Commit
+- `pending feat(plant): couple live audio metrics to growth`
+- `pending docs(handoff): record stage 5 commit`

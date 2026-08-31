@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GrowingView: View {
     let plant: PlantModel
+    let growthStep: Int
     let isListening: Bool
     let receivedBufferCount: Int
     let lastFrameLength: Int?
@@ -11,8 +12,6 @@ struct GrowingView: View {
     let duration: TimeInterval
     let onFinish: () -> Void
     let onCancel: () -> Void
-
-    @State private var growth: GrowthState?
 
     var body: some View {
         ZStack {
@@ -25,7 +24,7 @@ struct GrowingView: View {
                         .font(.largeTitle.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    Text("Plant driven by simulated SoundProfile · 由模拟 SoundProfile 驱动（未接麦克风）")
+                    Text("植物随声音实时生长 · 静音时停止（Stage 5）")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.66))
                         .multilineTextAlignment(.center)
@@ -33,7 +32,7 @@ struct GrowingView: View {
 
                 ListeningBadge(isListening: isListening)
 
-                PlantRenderer(structure: plant.structure, visibleSteps: growth?.currentStep ?? 0)
+                PlantRenderer(structure: plant.structure, visibleSteps: growthStep)
                     .frame(maxHeight: 250)
                     .padding(.vertical, 2)
 
@@ -65,24 +64,14 @@ struct GrowingView: View {
             }
             .padding(24)
         }
-        .task(id: plant.id) {
-            let totalSteps = plant.structure.metadata.maxDepth + 1
-            growth = GrowthState(totalSteps: totalSteps)
-            while let current = growth, !current.isComplete {
-                try? await Task.sleep(for: .milliseconds(320))
-                growth?.advance()
-            }
-        }
     }
 
     @ViewBuilder
     private var growthProgressLine: some View {
-        if let growth {
-            let counts = plant.structure.visibleCounts(upTo: growth.currentStep)
-            Text("步骤 \(growth.currentStep)/\(growth.totalSteps) · 分支 \(counts.branches) · 叶 \(counts.leaves) · 花 \(counts.flowers)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.white.opacity(0.55))
-        }
+        let counts = plant.structure.visibleCounts(upTo: growthStep)
+        Text("生长步骤 \(growthStep) · 分支 \(counts.branches) · 叶 \(counts.leaves) · 花 \(counts.flowers)")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.55))
     }
 }
 

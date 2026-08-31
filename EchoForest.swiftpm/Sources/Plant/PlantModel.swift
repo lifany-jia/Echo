@@ -5,6 +5,6 @@ import Foundation
 struct PlantModel: Identifiable, Equatable {
     let id: UUID
     let name: String
-    let profile: SoundProfile
-    let structure: PlantStructure
+    var profile: SoundProfile
+    var structure: PlantStructure
 }

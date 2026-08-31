@@ -3,6 +3,7 @@ import SwiftUI
 struct EchoForestRootView: View {
     @State private var flow = EchoForestFlow()
     @State private var audio = AudioEngineController()
+    @State private var growth = LiveGrowthController()
     @State private var isStarting = false
     @State private var seedIssue: SeedAudioIssue?
 
@@ -23,12 +24,14 @@ struct EchoForestRootView: View {
                     },
                     onCancel: {
                         audio.stopListening()
+                        growth.reset()
                         flow.cancelSeed()
                     }
                 )
             case .growing:
                 GrowingView(
-                    plant: flow.currentPlant ?? PlantGenerator.makeSimulatedPlant(index: 1),
+                    plant: growth.plant ?? PlantGenerator.makeSimulatedPlant(index: 1),
+                    growthStep: growth.growthState?.currentStep ?? 0,
                     isListening: audio.isListening,
                     receivedBufferCount: audio.receivedBufferCount,
                     lastFrameLength: audio.lastFrameLength,
@@ -37,21 +40,38 @@ struct EchoForestRootView: View {
                     onsetCount: audio.profile.onsetCount,
                     duration: audio.profile.duration,
                     onFinish: {
+                        if let plant = growth.plant {
+                            flow.finishGrowing(plant: plant)
+                        } else {
+                            flow.finishMockGrowing()
+                        }
                         audio.stopListening()
-                        flow.finishMockGrowing()
                     },
                     onCancel: {
                         audio.stopListening()
+                        growth.reset()
                         flow.cancelGrowing()
                     }
                 )
             case .result:
                 ResultView(
-                    plant: flow.currentPlant ?? PlantGenerator.makeSimulatedPlant(index: 1),
+                    plant: growth.plant ?? flow.currentPlant ?? PlantGenerator.makeSimulatedPlant(index: 1),
                     onPlantInForest: {
                         audio.stopListening()
                         flow.plantCurrentInForest()
+                        growth.reset()
                     }
+                )
+            }
+        }
+        .task(id: flow.stage) {
+            guard flow.stage == .growing else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(150))
+                growth.update(
+                    frame: audio.latestFrame,
+                    sessionProfile: audio.profile,
+                    dt: 0.15
                 )
             }
         }
@@ -89,7 +109,12 @@ struct EchoForestRootView: View {
 
             do {
                 try audio.startListening()
-                flow.startGrowing()
+                let seed = UInt64(0x51F0_0000) &+ UInt64(flow.plantedPlants.count + 1)
+                let plant = growth.startNewSession(
+                    name: "模拟植物 \(flow.plantedPlants.count + 1)",
+                    seed: seed
+                )
+                flow.startGrowing(plant: plant)
             } catch {
                 seedIssue = .engineFailed
             }

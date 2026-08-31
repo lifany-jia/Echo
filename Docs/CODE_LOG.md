@@ -4,7 +4,7 @@
 
 ## 1. 当前架构状态
 
-**代码状态：Stage 4 DONE（Growth Engine；真实麦克风耦合 NOT STARTED）**
+**代码状态：Stage 5 DONE（Real-time Coupling；真实麦克风耦合 NOT RUN）**
 
 当前结构：
 
@@ -23,17 +23,20 @@
 - `EchoForest.swiftpm/Sources/Plant/GrowthState.swift`：生长步骤（模拟 progression）。
 - `EchoForest.swiftpm/Sources/Plant/SeededRandom.swift`：SplitMix64 确定性 RNG。
 - `EchoForest.swiftpm/Sources/Plant/PlantGenerator.swift`：SoundProfile + seed → PlantStructure 的五维确定性映射。
+- `EchoForest.swiftpm/Sources/Plant/PlantGenerator.swift`（Stage 5）：新增 initialStructure / appendGrowthStep / appendFlower / normalizedCentroid01，支持增量生长。
+- `EchoForest.swiftpm/Sources/Plant/GrowthSession.swift`：实时耦合纯核心（SoundFrame 序列 → 逐步生长 PlantModel）。
+- `EchoForest.swiftpm/Sources/App/LiveGrowthController.swift`：@MainActor 协调层，150ms cadence 驱动 GrowthSession。
 - `EchoForest.swiftpm/Sources/Rendering/PlantRenderer.swift`：PlantStructure → Canvas；不重算声音映射。
 - `EchoForest.swiftpm/Sources/App/EchoForestRootView.swift`：持有 flow + audio；Seed “开始创作”异步执行权限 → startListening → 成功才进入 Growing；拒绝/失败弹 alert。
 - `EchoForest.swiftpm/Sources/Views/SeedView.swift`：种子页；按钮“开始创作”，提示首次请求权限。
 - `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：Listening 徽标 + buffer 链路计数 + Live Metrics 面板（Energy / Spectral Centroid / Onset count / Duration）+ 取消按钮；植物视觉仍为 mock。
 - `EchoForest.swiftpm/Sources/Views/ForestView.swift`：森林页，展示已种 PlantModel 缩略图。
-- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：PlantRenderer + GrowthState 逐步显现 + Live Metrics。
-- `EchoForest.swiftpm/Sources/Views/ResultView.swift`：PlantRenderer + 确定性模拟 SoundProfile DNA（明确标注 mock）。
-- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift` / `Stage3MetricsSelfTest.swift` / `Stage4PlantSelfTest.swift`：零依赖自测。
+- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：PlantRenderer + 实时 growthStep + Live Metrics 次要面板。
+- `EchoForest.swiftpm/Sources/Views/ResultView.swift`：PlantRenderer + 会话 SoundProfile DNA（明确叫 Spectral Centroid）。
+- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift` / `Stage3MetricsSelfTest.swift` / `Stage4PlantSelfTest.swift` / `Stage5CouplingSelfTest.swift`：零依赖自测。
 - `EchoForest.swiftpm/Info.plist`：NSMicrophoneUsageDescription（尽力配置；官方路径为 Xcode capability）。
 
-Stage 5+ 实时耦合 / 持久化尚未实现；PitchDetector 未实现（以 Spectral Centroid 代理）。旧的 MockPlantModel / MockSoundProfile / MockPlantCanvas 已删除。
+Stage 6 持久化尚未实现；PitchDetector 未实现（以 Spectral Centroid 代理）。旧的 MockPlantModel / MockSoundProfile / MockPlantCanvas 已删除。
 
 ---
 
@@ -286,6 +289,43 @@ Commit: `feat(audio): add real-time sound metrics`
 ### Known risks
 - 真实音频集成未实测；Spectral Centroid 不是真实 pitch。
 - 音频会话中断处理未实现。
+
+## 2026-08-31 — pending
+
+Commit: `feat(plant): couple live audio metrics to growth`
+
+### Files
+- `Sources/Plant/GrowthSession.swift`：新增；实时耦合纯核心。
+- `Sources/App/LiveGrowthController.swift`：新增；@MainActor @Observable 协调层。
+- `Sources/Plant/PlantGenerator.swift`：新增增量 API（initialStructure / appendGrowthStep / appendFlower / normalizedCentroid01 / LiveGrowthParams / seedlingProfile）；normalize + makeTrunk 与 Stage 4 共享。
+- `Sources/Plant/PlantModel.swift`：profile / structure 改为 var（实时更新）。
+- `Sources/App/EchoForestFlow.swift`：新增 startGrowing(plant:) / finishGrowing(plant:)。
+- `Sources/App/EchoForestRootView.swift`：持有 LiveGrowthController；150ms coupling task；Seed 成功后创建新会话；Result 冻结 growth.plant；取消 / 种进森林时 reset。
+- `Sources/Audio/AudioEngineController.swift`：metrics snapshot 同步从 500ms 调整为 150ms（耦合 + UI 共用 cadence）。
+- `Sources/Views/GrowingView.swift`：移除 320ms 模拟计时器，改用实时 growthStep。
+- `Sources/Views/ResultView.swift`：DNA 切换为会话 SoundProfile，明确 Spectral Centroid (Frequency)。
+- `SelfTests/Stage5CouplingSelfTest.swift`：新增；录音回放式确定性耦合自测。
+
+### Behavior change
+- Growing 由真实（或回放）SoundFrame 序列驱动：静音不增长，有声才长，大声长得更多更粗，onset 开花。
+- Result 展示与 Growing 完全相同的最终 PlantModel，Sound DNA 为会话 SoundProfile。
+
+### Design notes
+- 链路：callback → DSP → 锁保护 snapshot → 150ms coupling（EMA + activity gate + 能量累积预算）→ GrowthState / PlantModel → PlantRenderer。
+- 不每 buffer 重建整棵树：每次 update 最多追加若干新枝（受 maxSteps / maxBranchCount 上限）。
+- 平滑用 EMA（alpha 0.35）；静音时 growthAccumulator 缓慢衰减；onset 保持离散事件。
+- 同一帧序列 + 同 seed → 最终结构一致（GrowthSession 纯确定性）。
+- PlantModel.profile 每 tick 同步会话 profile，保证 Result DNA 是真实 session summary。
+
+### Tests
+- `swift build --package-path EchoForest.swiftpm` PASS。
+- Stage 5 coupling self-test PASS（Scenario A–F + 上限 + 二次创作重置）。
+- Stage 1 / Stage 2 / Stage 3 / Stage 4 regression PASS。
+- 真实麦克风耦合：NOT RUN。
+
+### Known risks
+- 150ms cadence 与平滑参数的观感需真机验证。
+- 真机首次真实音频 → 生长链路未实测（NOT RUN）。
 
 ## 2026-08-31 — c26e338
 
