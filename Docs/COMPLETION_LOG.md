@@ -614,3 +614,33 @@
 ### Commit
 - `fix(audio): use hardware input format to prevent real-device crash`
 - `fix(rendering): anchor plant base at bottom and align palette with design`
+
+---
+
+## App 图标（2026-08-31）
+
+**Status:** DONE（像素级几何校验通过；未人工目检，视觉以用户确认为准）
+
+### 完成
+- 基于主页概念主视觉 `Design/assets/trees/tree-hero.svg` 生成 App 图标：
+  `Design/AppIcon/app-icon.svg`（源）+ `app-icon-1024.png`（主图）+
+  `app-icon-512.png` / `app-icon-256.png`。
+- 构图：源图 1200×1500 裁出正方形（y∈[240,1440]），缩放到 1024²；
+  墨夜绿渐变、右上月光、雾带、树根声音波纹、琥珀花与萤火全部保留，无文字。
+- 新增可复现生成器 `Design/scripts/generate_appicon.py`
+  （读取 tree-hero.svg → 包装为 1024² 画布 → qlmanage 渲染 PNG → sips 出多尺寸）。
+- `Design/README.md` 增加 AppIcon 用法（Swift Playgrounds App Settings 设置路径）。
+
+### 验证
+- 三个尺寸 PNG 像素尺寸校验 PASS（1024² / 512² / 256²）。
+- 几何保真：1024 渲染图与 tree-hero.png 同区域裁切缩放后逐点比对，
+  mean abs diff = 1.44 / 255（p95 = 3.0），几乎像素级一致。
+- 无内置 image_gen 工具（本会话），未走 CLI 图像模型路径；图标由既有程序化
+  资产直接生成，与设计体系完全一致。
+
+### 未完成 / 风险
+- 未人工目检（本环境无图像输入），最终视觉效果以真机 / 用户确认为准。
+- Swift Playgrounds App Icon 由 App Settings 配置，代码内无 icon 字段可改。
+
+### Commit
+- `feat(design): add echo forest app icon`

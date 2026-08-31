@@ -40,6 +40,9 @@
 - 真机验证（iPhone 17 / iOS 26.6.1）：DONE（修复真机 48kHz 输入崩溃 + 树底部锚定 + 设计稿配色；真机安装运行 PASS）
 - Design 主页 UI 设计稿与树的表达（并行交付物，`Design/`）：DONE
 - Stage 7 主页视觉落地（Forest 主页按设计稿重做）：DONE（模拟器截图验证；用户已明确恢复主页部分）
+- App 图标（`Design/AppIcon/`，基于 tree-hero 主视觉的正方形构图）：DONE
+  （1024 主图 + 512/256 + SVG 源 + 可复现脚本 `Design/scripts/generate_appicon.py`；
+  Swift Playgrounds 在 App Settings → App Icon 里设置）
 - 视觉精修（Growing / Result / Detail）：PAUSED / NOT STARTED（Stage 7 其余部分仍等用户明确恢复）
 - 提交包：NOT STARTED（Stage 8）
 

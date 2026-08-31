@@ -613,3 +613,32 @@ Commit: `03c672b feat(plant): add wild mode and sound memory`
 
 ### Known risks
 - 真机视觉效果未经本环境人工目检（无图像输入），由用户确认。
+
+---
+
+## App 图标（2026-08-31）
+
+### Files
+- `Design/AppIcon/app-icon.svg`：1024×1024 矢量源，内容是 tree-hero.svg 的
+  defs + 全部元素包在 `<g transform="translate(0,-204.8) scale(0.853333)">` 中，
+  即源图 y∈[240,1440] 的正方形裁切。
+- `Design/AppIcon/app-icon-1024.png`（主图）/ `-512` / `-256`（sips 缩图）。
+- `Design/scripts/generate_appicon.py`：读取 tree-hero.svg → 正则抽出
+  `<defs>` 与 body → 包装成 1024² 画布 → `qlmanage -s 1024` 渲染 →
+  `sips -z` 出 512/256。全部 macOS 内置工具，无第三方依赖，可重复生成。
+- `Design/README.md`：新增 AppIcon 小节（文件表 + 重新生成 + 设置路径）。
+
+### Design notes
+- 图标不新增设计元素，只对既有主视觉做“满高居中”的正方形构图：
+  树冠上沿（y≈240）与地面柔光（y≈1440）都保留，月亮高光从顶部自然透出。
+- 不预置圆角、不添加文字，符合 iOS AppIcon 规范（系统自动施加圆角遮罩）。
+- 该 .swiftpm 无代码可写的 icon 字段；Swift Playgrounds 通过 App Settings →
+  App Icon 指向 `app-icon-1024.png`。
+
+### Tests
+- `python3 Design/scripts/generate_appicon.py` PASS（3 个尺寸全部生成）。
+- PIL 校验：1024 渲染与 tree-hero.png 同区域裁切缩放 mean abs diff 1.44/255，
+  几何/渲染管线保真。
+
+### Known risks
+- 本环境无图像输入，未人工目检，视觉以用户确认为准。

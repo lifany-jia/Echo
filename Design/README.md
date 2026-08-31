@@ -24,8 +24,10 @@ Design/
 ├── assets/
 │   ├── trees/                   # 7 幅树的表达（SVG 源文件 + 1200×1500 PNG）
 │   └── plants/                  # 6 棵主页森林小植物（SVG + 240×300 PNG）
+├── AppIcon/                     # App 图标（1024 主图 + 512/256 缩略 + SVG 源）
 └── scripts/
-    └── generate_trees.py        # 程序化生成器（纯标准库，可重复生成）
+    ├── generate_trees.py        # 程序化生成器（纯标准库，可重复生成）
+    └── generate_appicon.py      # App 图标生成器（裁切 tree-hero 主视觉）
 ```
 
 ## 使用方式
@@ -36,6 +38,28 @@ Design/
 4. **复现 / 复刻**：需要把设计方向、图像提示词或实现要求发给其他工具时，直接复制 `PROMPTS.md` 中的对应段落。
 
 主页设计已按本稿落地到 `EchoForest.swiftpm/Sources/Views/ForestView.swift`；`runtime-forest-*.png` 为模拟器实拍验证截图。
+
+## App 图标（`AppIcon/`）
+
+图标复用主页概念主视觉 `tree-hero`，裁出正方形 1024×1024 构图：墨夜绿渐变、
+右上月光、树根声音波纹、琥珀花与萤火全部保留，与设计语言一致；无文字、无圆角
+（iOS 由系统自动施加圆角遮罩）。
+
+| 文件 | 用途 |
+|---|---|
+| `app-icon.svg` | 可复现矢量源（1200×1500 源图裁 y∈[240,1440] 后缩放到 1024²） |
+| `app-icon-1024.png` | 主图，App Store / AppIcon 标准尺寸 |
+| `app-icon-512.png` / `app-icon-256.png` | 缩略图 / 一般展示用 |
+
+重新生成：
+
+```bash
+python3 Design/scripts/generate_appicon.py
+```
+
+在 Swift Playgrounds（.swiftpm）中设置：打开 App 的 **App Settings → App Icon**，
+选择 `app-icon-1024.png`；若用 Xcode 工程，则放入 `Assets.xcassets` 的
+`AppIcon.appiconset`。
 
 ## 树的表达（六种声音性格）
 
