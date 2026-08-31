@@ -39,6 +39,24 @@
 
 Stage 1–4 状态：Stage 2 已接入 AVAudioEngine 输入链路与权限流程；Stage 3 已实现真实指标 RMS / Energy、Spectral Centroid（频率代理，非 Pitch）、Onset；Stage 4 已建立 Plant 模块与五维确定性映射（相同 profile + seed 完全可复现）。Stage 5 已实现实时耦合：GrowthSession（纯核心）+ LiveGrowthController（150ms cadence）把 SoundFrame 序列增量推进植物，静音不增长、有声才长、大声更粗更长、onset 开花；Result 冻结 Growing 的最终 PlantModel，Sound DNA 为会话 SoundProfile（明确叫 Spectral Centroid）。持久化（Stage 6）未实现；森林状态仅存在于当前运行周期内存。
 
+### Runtime Gate 实测（2026-08-31，iOS 模拟器 iPhone 17 Pro / iOS 26.5，宿主 Mac 麦克风）
+
+- App 启动 / Forest 首屏：PASS
+- 首次“开始创作”系统麦克风权限弹窗：PASS
+- 权限允许：PASS；权限拒绝：PASS（“需要麦克风权限”弹窗，可返回森林/留在 Seed，不崩溃）
+- 真实 AVAudioPCMBuffer callback：PASS（buffer 9→122，frameLength 4410）
+- 真实 AudioAnalyzer metrics：PASS
+- 静音门控：PASS（确定性测试；环境有底噪未取真静音样本）
+- 声音驱动生长：PASS（steps 0→3）；频率代理响应：PASS（220Hz→226Hz，880Hz→543Hz）
+- 拍手/onset：NOT RUN（模拟器扬声器→麦克风路径能量不足；逻辑由 Stage 5 Scenario D 覆盖，真机待验证）
+- Result 植物一致 + Sound DNA 真实：PASS（Energy 0.17 / 522 Hz / 12.1s / Variation 0.04）
+- 第二次会话重置：PASS（新 plantID、buffers/steps/duration 重置、engine 重启）
+- 后台/前台：PASS（无崩溃）；3 分钟流程：PASS（单会话约 19s）
+
+Runtime 修复记录：tap 闭包 MainActor 隔离崩溃（已修复）；Result DNA 空 profile 竞态（已修复）；Forest “mock 植物”残留文案（已修复）。
+
+环境注意：完整 Xcode 26.6 已安装但 active developer directory 仍为 Command Line Tools（sudo 需密码）；使用 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 覆盖可跑 xcodebuild / 模拟器。
+
 权限配置注意：App Playground 的官方做法是在 Xcode 打开后，通过 Signing & Capabilities 添加 Microphone capability；仓库包根已附带 `Info.plist`（NSMicrophoneUsageDescription）作为尽力配置，需在 Xcode 中确认生效。
 
 真实状态以后以 `COMPLETION_LOG.md` 为准。
@@ -81,16 +99,16 @@ docs(handoff): update current project state
 
 ## 当前最推荐的第一项代码任务
 
-Stage 5 已完成代码层实时耦合。下一项任务是 Stage 6 — Forest Persistence：
+Runtime Gate 已完成（模拟器实测）。下一项任务是 Stage 6 — Forest Persistence：
 
 > 结果加入森林后本地保存轻量数据（PlantStructure / SoundProfile 的 Codable 或等价轻量方案），重启后仍可显示；保持 25MB 与离线约束。完成后按 `feat(persistence): ...` 提交。
 
-Stage 5 验证：
+当前验证基线：
 
-- `swift build --package-path EchoForest.swiftpm` PASS
-- Stage 5 coupling self-test PASS（Scenario A–F：静音 / 大声 / 高低频 / onset / expressive / 确定性回放）
-- Stage 1 / Stage 2 / Stage 3 / Stage 4 regression PASS
-- 真实麦克风耦合：NOT RUN（Command Line Tools 环境）
+- `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build` PASS
+- iOS 模拟器 Runtime Gate 实测 PASS（详见 COMPLETION_LOG）
+- `swift build --package-path EchoForest.swiftpm` PASS；Stage 1–5 self-test 全部 PASS
+- 真机、拍手/onset、音频中断处理：NOT RUN / 未实现
 
 ## 绝对不要忘记
 

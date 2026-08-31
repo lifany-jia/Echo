@@ -18,10 +18,10 @@
 |---|---|---|---|
 | 0 | Build Baseline | DONE | `swift build --package-path EchoForest.swiftpm` PASS x2 |
 | 1 | Static Experience | DONE | `swift build` PASS + flow self-test PASS |
-| 2 | Audio Input | DONE（代码层） | build PASS + 状态自测 PASS；真机麦克风 NOT RUN |
+| 2 | Audio Input | DONE | 模拟器实测 PASS（权限允许/拒绝、真实 buffer）；真机 NOT RUN |
 | 3 | Audio Metrics | DONE（代码层） | build PASS + 确定性 DSP 自测 PASS；真机音频集成 NOT RUN |
 | 4 | Growth Engine | DONE（代码层） | build PASS + generator 自测 PASS；实时耦合 NOT STARTED |
-| 5 | Real-time Coupling | DONE（代码层） | build PASS + coupling 自测 PASS；真实麦克风耦合 NOT RUN |
+| 5 | Real-time Coupling | DONE | 模拟器实测 PASS（声音驱动生长、频率响应、Result 真实 DNA）；真机耦合 NOT RUN |
 | 6 | Forest Persistence | NOT STARTED | NOT RUN |
 | 7 | Presentation Polish | NOT STARTED | NOT RUN |
 | 8 | Submission Hardening | NOT STARTED | NOT RUN |
@@ -296,3 +296,53 @@
 
 ### Commit
 - `e466444 feat(plant): couple live audio metrics to growth`
+
+## 2026-08-31 13:12 — Runtime Gate — Stage 0–5
+
+**Status:** DONE（iOS 模拟器实测；真实设备仍 NOT RUN）
+
+### 环境
+- active developer directory 原本指向 Command Line Tools；完整 Xcode 26.6（/Applications/Xcode.app）已安装，但 `sudo xcode-select` 需要密码不可用，改用 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 会话级覆盖，未修改系统其他配置。
+- 测试环境：iOS Simulator — iPhone 17 Pro / iOS 26.5；模拟器麦克风使用宿主 Mac 麦克风。
+
+### Runtime Gate 发现的真实 bug 与修复
+1. tap 闭包继承 @MainActor 隔离导致崩溃：AVAudioEngine 在 `RealtimeMessenger.mServiceQueue` 调用我们的 tap 闭包时，Swift 运行时做主执行器检查，触发 libdispatch `BUG IN CLIENT OF LIBDISPATCH: Assertion failed: Block was expected to execute on queue [com.apple.main-thread]`（lldb 断点定位到 `closure #1 in AudioEngineController.startListening`）。修复：tap 安装移到 `nonisolated static` 函数（`installInputTap`），闭包不再继承 MainActor 隔离。
+2. Result DNA 竞态：停止引擎后，耦合任务最后一 tick 把已清空的 session profile 写回 `growth.plant`，而 ResultView 优先取 `growth.plant` → 屏幕显示全 0。修复：ResultView 优先取冻结的 `flow.currentPlant`；autopilot 顺序与真实 UI 路径一致（先 `finishGrowing` 冻结，再 `stopListening`）。
+3. Forest 页残留 “mock 植物” 文案 → 改为 “棵植物”。
+
+### 实测结果（截图 / 日志证据）
+| 项目 | 结果 |
+|---|---|
+| App Playground 打开 / build | PASS（Xcode 26.6 进程运行并打开包；CLI 侧 `xcodebuild -scheme EchoForest` 识别并 BUILD SUCCEEDED） |
+| App launch / Forest 首屏 | PASS（截图 OCR：声音森林 / 每一种声音，都可以生长。/ 种下一段声音） |
+| 首次“开始创作”系统麦克风权限弹窗 | PASS（截图 OCR 显示系统弹窗 + NSMicrophoneUsageDescription 文案） |
+| 权限允许路径 | PASS（simctl privacy grant → engine 启动 → Growing；buffer 计数 9→122，frameLength 4410） |
+| 权限拒绝路径 | PASS（simctl privacy revoke → “需要麦克风权限”弹窗，可返回森林/留在 Seed，不崩溃、无假 Listening） |
+| 真实 AVAudioPCMBuffer callback | PASS（收到 buffer 持续增长，frameLength=4410） |
+| 真实 AudioAnalyzer metrics | PASS（Energy / Spectral Centroid / Variation 实时变化） |
+| 静音门控 | PASS（Stage 5 Scenario A 确定性验证；模拟器房间存在环境底噪 energy≈0.1–0.2，未取得真正静音样本） |
+| 声音驱动生长 | PASS（steps 0→3；播放测试音频后能量 0.13–0.43） |
+| 频率代理响应 | PASS（220 Hz 播放 → centroid 226 Hz；880 Hz 播放 → 543 Hz；日志范围 332–1292 Hz） |
+| 拍手 / onset 事件 | NOT RUN（扬声器→麦克风路径峰值能量≈0.29 < onset 阈值 0.35；逻辑由 Stage 5 Scenario D 覆盖，真机拍手待验证） |
+| Result 植物与 Growing 一致 | PASS（冻结 flow.currentPlant，无重新生成） |
+| Result Sound DNA 真实 session profile | PASS（截图：Energy 0.17 / Spectral Centroid 522 Hz / Duration 12.1s / Variation 0.04） |
+| 第二次会话重置 | PASS（plantID 2070B1B1 → F0C39FC5；buffers/steps/duration 全部重置；engine 重启、tap 重新安装成功） |
+| 后台 / 前台 | PASS（无崩溃，回前台后生长从 0 继续到 2；interruption 处理仍为已知风险） |
+| 3 分钟流程 | PASS（单会话约 19s，双会话约 34s） |
+
+### 验证命令（实际执行）
+- `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath /tmp/ef-derived build` → PASS
+- `xcrun simctl boot / install / launch / privacy grant|revoke / io screenshot / spawn log show` → 实测（见上表）
+- `swift build --package-path EchoForest.swiftpm` → PASS
+- Stage 1 / 2 / 3 / 4 / 5 self-test → 全部 PASS
+- `open -a Xcode <EchoForest.swiftpm>` → 已执行（进程运行；窗口级验证受系统自动化权限限制）
+
+### 未完成 / 风险
+- 真实 iPhone 设备未测试（仅 iOS 模拟器 + 宿主麦克风）。
+- 拍手 / onset 真机验证 NOT RUN。
+- 音频中断处理（后台长时间、媒体服务重置）未实现。
+- autopilot 测试钩子（环境变量 `ECHO_FOREST_AUTOPILOT=1` 激活）保留在 App 内；未设置时无任何行为。
+
+### Commit
+- `fc60fdf fix(audio): isolate tap callback from main actor`
+- `9b589dd fix(plant): freeze result plant and add runtime autopilot hook`

@@ -327,6 +327,32 @@ Commit: `feat(plant): couple live audio metrics to growth`
 - 150ms cadence 与平滑参数的观感需真机验证。
 - 真机首次真实音频 → 生长链路未实测（NOT RUN）。
 
+## 2026-08-31 — fc60fdf + 9b589dd（Runtime Gate 修复）
+
+Commit: `fix(audio): isolate tap callback from main actor` + `fix(plant): freeze result plant and add runtime autopilot hook`
+
+### Files
+- `Sources/Audio/AudioEngineController.swift`：tap 安装移到 `nonisolated static func installInputTap`，修复闭包继承 @MainActor 隔离导致的模拟器运行时崩溃。
+- `Sources/App/EchoForestRootView.swift`：ResultView 优先取冻结的 `flow.currentPlant`；autopilot 顺序改为先冻结再停引擎；autopilot 扩展为双会话并用 NSLog 输出证据；日志添加 plantID。
+- `Sources/Views/ForestView.swift`：删除残留 “mock 植物” 文案。
+
+### Behavior change
+- 真实 runtime 链路（engine → tap → analyzer → growth → Result）在 iOS 模拟器上稳定运行，不再崩溃。
+- Result DNA 显示真实会话 SoundProfile（不再被空 profile 竞态清零）。
+
+### Design notes
+- lldb 断点 `_dispatch_assert_queue_fail` 定位到 tap 闭包：Swift 6 下闭包继承创建上下文（@MainActor）的隔离，AVAudioEngine 在自身 service queue 调用时触发断言；在 nonisolated 上下文创建闭包即可。
+- ResultView 优先展示冻结植物（flow.currentPlant），growth.plant 仅作回退，避免耦合层后续修改污染 Result。
+- autopilot 钩子仅在 `ECHO_FOREST_AUTOPILOT=1` 时运行，用于无 UI 自动化环境做 runtime 验证，保留在代码中供真机复测。
+
+### Tests
+- `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build` PASS。
+- iOS 模拟器实测：权限允许/拒绝、真实 buffer、真实 metrics、声音驱动生长、频率响应、Result 真实 DNA、二次会话重置、后台/前台、双会话 3 分钟流程。
+- `swift build --package-path EchoForest.swiftpm` PASS；Stage 1–5 self-test 全部 PASS。
+
+### Known risks
+- 真机未测；拍手/onset 真机验证 NOT RUN；音频中断处理未实现。
+
 ## 2026-08-31 — c26e338
 
 Commit: `feat(plant): add deterministic growth engine`
