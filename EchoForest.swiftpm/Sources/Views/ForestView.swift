@@ -84,7 +84,7 @@ private struct PlantedForestGrid: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("已种下 \(plants.count) 棵 mock 植物")
+            Text("已种下 \(plants.count) 棵植物")
                 .font(.headline)
                 .foregroundStyle(.white.opacity(0.88))
 
