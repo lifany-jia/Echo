@@ -162,7 +162,7 @@ Commit: `build(app): add SwiftPM baseline`
 - App Playground 手动打开未在当前环境验证。
 - 首屏之后的核心体验仍全部等待后续 Stage。
 
-## 2026-08-31 — pending
+## 2026-08-31 — fd9248f
 
 Commit: `feat(flow): build static creation loop`
 

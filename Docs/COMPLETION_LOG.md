@@ -134,6 +134,5 @@
 - App Playground 手动打开验证 NOT RUN。
 
 ### Commit
-- `pending chore(docs): relocate project logs under Docs/`
-- `pending feat(flow): build static creation loop`
-- `pending docs(handoff): record stage 1 commit`
+- `580e07a chore(docs): relocate project logs under Docs/`
+- `fd9248f feat(flow): build static creation loop`
