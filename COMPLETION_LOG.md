@@ -99,4 +99,4 @@
 - Xcode/App Playground 图形化打开未在当前命令行环境验证。
 
 ### Commit
-- `pending build(app): add SwiftPM baseline`
+- `37269c1 build(app): add SwiftPM baseline`

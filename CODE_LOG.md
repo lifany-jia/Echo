@@ -136,7 +136,7 @@ Decision:
 Why:
 - 用户已要求此创意先按非 AR 方向完整实现；团队级 AR 数量约束由其他作品满足。
 
-## 2026-08-31 — pending
+## 2026-08-31 — 37269c1
 
 Commit: `build(app): add SwiftPM baseline`
 
