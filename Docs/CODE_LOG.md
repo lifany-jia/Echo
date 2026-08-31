@@ -330,7 +330,7 @@ Commit: `feat(plant): couple live audio metrics to growth`
 - 150ms cadence 与平滑参数的观感需真机验证。
 - 真机首次真实音频 → 生长链路未实测（NOT RUN）。
 
-## 2026-08-31 — pending
+## 2026-08-31 — 4463b39
 
 Commit: `feat(persistence): save and restore forest locally`
 

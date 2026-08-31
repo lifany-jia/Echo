@@ -385,5 +385,4 @@
 - 真机（iPhone）仍未验证；Stage 7+ 未开始。
 
 ### Commit
-- `pending feat(persistence): save and restore forest locally`
-- `pending docs(handoff): record stage 6 completion`
+- `4463b39 feat(persistence): save and restore forest locally`
