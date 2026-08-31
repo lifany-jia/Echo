@@ -202,7 +202,7 @@ Commit: `feat(flow): build static creation loop`
 - 静态闭环未在真机/模拟器图形化运行中验证（NOT RUN）。
 - Growing 为静态 mock 视觉，真实声音耦合需 Stage 2–5。
 
-## 2026-08-31 — pending
+## 2026-08-31 — fe6142d
 
 Commit: `feat(audio): add microphone input pipeline`
 

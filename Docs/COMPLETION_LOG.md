@@ -171,5 +171,4 @@
 - RMS / pitch / onset / Sound DNA 真实计算 / 生长映射 / 持久化均未实现（Stage 3+）。
 
 ### Commit
-- `pending feat(audio): add microphone input pipeline`
-- `pending docs(handoff): record stage 2 commit`
+- `fe6142d feat(audio): add microphone input pipeline`
