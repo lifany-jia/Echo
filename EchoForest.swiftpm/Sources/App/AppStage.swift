@@ -3,4 +3,5 @@ enum AppStage: Equatable {
     case seed
     case growing
     case result
+    case detail
 }

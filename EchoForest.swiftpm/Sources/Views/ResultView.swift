@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ResultView: View {
     let plant: PlantModel
+    let mode: GrowthMode
     let onPlantInForest: () -> Void
 
     var body: some View {
@@ -17,105 +18,50 @@ struct ResultView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 14) {
-                Text(plant.name)
-                    .font(.largeTitle.weight(.semibold))
-                    .foregroundStyle(.white)
+                ScrollView {
+                    VStack(spacing: 10) {
+                        PlantRenderer(structure: plant.structure)
+                            .frame(width: 260, height: 250)
+                            .padding(.top, 4)
 
-                Text("由实时声音耦合生长（Stage 5）")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.64))
+                        Text(plant.name)
+                            .font(.title.weight(.semibold))
+                            .foregroundStyle(.white)
 
-                PlantRenderer(structure: plant.structure)
-                    .frame(maxHeight: 280)
+                        Text(mode.isWild ? "你驯服了一棵失控的声音树。" : "这是你的声音长成的植物")
+                            .font(.subheadline)
+                            .foregroundStyle(mode.isWild ? Color(red: 0.88, green: 0.66, blue: 0.40) : .white.opacity(0.6))
 
-                SoundDNAView(profile: plant.profile)
+                        Text("模式：\(mode.displayName)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.68))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(mode.isWild ? Color(red: 0.72, green: 0.42, blue: 0.22).opacity(0.35) : .white.opacity(0.10), in: Capsule())
+
+                        Text(SoundPresentation.summary(for: plant.profile))
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.72))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .padding(.horizontal, 12)
+
+                        SoundDNAView(profile: plant.profile)
+                    }
+                    .padding(.top, 18)
+                }
 
                 Button(action: onPlantInForest) {
                     Text("种进森林")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 15)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.46, green: 0.67, blue: 0.39))
             }
-            .padding(28)
-        }
-    }
-}
-
-private struct SoundDNAView: View {
-    let profile: SoundProfile
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Sound DNA · 会话 SoundProfile")
-                .font(.headline)
-                .foregroundStyle(.white)
-
-            DNABarRow(label: "Energy", value: profile.energy)
-            DNATextRow(
-                label: "Spectral Centroid (Frequency)",
-                value: profile.spectralCentroidHz.map { String(format: "%.0f Hz", $0) } ?? "—"
-            )
-            DNATextRow(label: "Onset", value: "\(profile.onsetCount)")
-            DNATextRow(label: "Duration", value: String(format: "%.1f s", profile.duration))
-            DNABarRow(label: "Variation", value: profile.variation)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.white.opacity(0.13), lineWidth: 1)
-        }
-    }
-}
-
-private struct DNABarRow: View {
-    let label: String
-    let value: Double
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.72))
-                Spacer()
-                Text(String(format: "%.2f", min(max(value, 0), 1)))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(.white.opacity(0.12))
-
-                    Capsule()
-                        .fill(Color(red: 0.86, green: 0.70, blue: 0.40))
-                        .frame(width: geometry.size.width * min(max(value, 0), 1))
-                }
-            }
-            .frame(height: 7)
-        }
-    }
-}
-
-private struct DNATextRow: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.white.opacity(0.72))
-            Spacer()
-            Text(value)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.white.opacity(0.86))
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
         }
     }
 }

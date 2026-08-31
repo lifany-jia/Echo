@@ -21,7 +21,7 @@ struct Stage1FlowSelfTest {
 
         flow.startGrowing()
         expect(flow.stage == .growing, "Seed should move to Growing")
-        expect(flow.currentPlant?.name == "模拟植物 1", "Growing should create first simulated plant")
+        expect(flow.currentPlant?.name == "柔展苗 1", "Growing should create first named plant")
 
         flow.finishMockGrowing()
         expect(flow.stage == .result, "Growing should move to Result")

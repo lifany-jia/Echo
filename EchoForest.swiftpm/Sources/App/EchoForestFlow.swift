@@ -2,6 +2,8 @@ struct EchoForestFlow: Equatable {
     private(set) var stage: AppStage = .forest
     private(set) var forest: ForestModel = ForestModel()
     private(set) var currentPlant: PlantModel?
+    private(set) var selectedRecord: PlantRecord?
+    private(set) var currentMode: GrowthMode = .normal
 
     init(forest: ForestModel = ForestModel()) {
         self.forest = forest
@@ -11,20 +13,33 @@ struct EchoForestFlow: Equatable {
         forest.plants
     }
 
-    mutating func moveToSeed() {
+    var plantedRecords: [PlantRecord] {
+        forest.records
+    }
+
+    mutating func moveToSeed(mode: GrowthMode = .normal) {
         currentPlant = nil
+        selectedRecord = nil
+        currentMode = mode
         stage = .seed
     }
 
     mutating func cancelSeed() {
         currentPlant = nil
+        selectedRecord = nil
+        currentMode = .normal
         stage = .forest
     }
 
     /// UI 路径：使用实时耦合层已创建并生长的植物。
     mutating func startGrowing(plant: PlantModel) {
+        startGrowing(plant: plant, mode: currentMode)
+    }
+
+    mutating func startGrowing(plant: PlantModel, mode: GrowthMode) {
         guard stage != .growing else { return }
         currentPlant = plant
+        currentMode = mode
         stage = .growing
     }
 
@@ -35,6 +50,7 @@ struct EchoForestFlow: Equatable {
 
     mutating func cancelGrowing() {
         currentPlant = nil
+        currentMode = .normal
         stage = .seed
     }
 
@@ -51,9 +67,22 @@ struct EchoForestFlow: Equatable {
 
     mutating func plantCurrentInForest() {
         if let plant = currentPlant {
-            forest.add(plant)
+            forest.add(PlantRecord(plant: plant, growthMode: currentMode))
         }
         currentPlant = nil
+        selectedRecord = nil
+        currentMode = .normal
+        stage = .forest
+    }
+
+    mutating func showDetail(record: PlantRecord) {
+        selectedRecord = record
+        currentPlant = nil
+        stage = .detail
+    }
+
+    mutating func leaveDetail() {
+        selectedRecord = nil
         stage = .forest
     }
 
@@ -62,6 +91,8 @@ struct EchoForestFlow: Equatable {
     mutating func adoptForest(_ forest: ForestModel) {
         self.forest = forest
         currentPlant = nil
+        selectedRecord = nil
+        currentMode = .normal
         stage = .forest
     }
 }

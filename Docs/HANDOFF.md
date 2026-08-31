@@ -31,13 +31,31 @@
 - Stage 1 静态体验闭环（Forest → Seed → Growing → Result → Forest）：DONE
 - 音频输入（Stage 2）：DONE（代码层；真实麦克风运行时 NOT RUN）
 - 声音分析（Stage 3）：DONE（代码层；真实麦克风 → analyzer 集成 NOT RUN）
-- 植物生成（Stage 4）：DONE（代码层；真实麦克风耦合 NOT STARTED）
-- 实时耦合（Stage 5）：DONE（代码层；真实麦克风耦合 NOT RUN）
+- 植物生成（Stage 4）：DONE（确定性生成 + Stage 6.5 tree grammar）
+- 实时耦合（Stage 5）：DONE（真实麦克风 runtime PASS）
 - 森林保存（Stage 6）：DONE（模拟器 kill/relaunch 实测 PASS）
-- 视觉精修：NOT STARTED（Stage 7）
+- Stage 6.5 Sound Tree Redesign & Audio Memory：DONE（模拟器录音/保存/重启/详情播放 PASS）
+- Stage 6.5+ Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2：DONE（模拟器 Normal/Wild runtime PASS；真机/真实拍手 NOT RUN）
+- Design 主页 UI 设计稿与树的表达（并行交付物，`Design/`）：DONE
+- 视觉精修：PAUSED / NOT STARTED（Stage 7，不要继续 Presentation Polish，除非用户重新明确恢复）
 - 提交包：NOT STARTED（Stage 8）
 
-Stage 1–4 状态：Stage 2 已接入 AVAudioEngine 输入链路与权限流程；Stage 3 已实现真实指标 RMS / Energy、Spectral Centroid（频率代理，非 Pitch）、Onset；Stage 4 已建立 Plant 模块与五维确定性映射（相同 profile + seed 完全可复现）。Stage 5 已实现实时耦合：GrowthSession（纯核心）+ LiveGrowthController（150ms cadence）把 SoundFrame 序列增量推进植物，静音不增长、有声才长、大声更粗更长、onset 开花；Result 冻结 Growing 的最终 PlantModel，Sound DNA 为会话 SoundProfile（明确叫 Spectral Centroid）。持久化（Stage 6）未实现；森林状态仅存在于当前运行周期内存。
+Stage 1–6.5 状态：Stage 2 已接入 AVAudioEngine 输入链路与权限流程；Stage 3 已实现真实指标 RMS / Energy、Spectral Centroid（频率代理，非 Pitch）、Onset；Stage 4/6.5 的 Plant 模块现在使用明确层级 tree grammar（1 trunk、4–7 primary、secondary、terminal twigs），相同 sound-frame 序列 + seed 完全可复现。Stage 5 已实现实时耦合：GrowthSession（纯核心）+ LiveGrowthController（150ms cadence）把 SoundFrame 序列增量推进植物，静音不增长、有声才长、大声更粗更长、energy slope 控制左右、centroid 控制横向/向上、variation 控制弯曲、onset 在 terminal twigs 开花。Stage 6 持久化已升级为 PlantRecord：PlantModel + SoundProfile + createdAt + relative audio filename + audioDuration；音频保存在 `Application Support/EchoForest/Audio/<plantUUID>.m4a`，JSON 不存 base64。
+
+Stage 6.5+（本阶段）：
+- `GrowthMode`（normal / wild）：Forest 双入口（主“种下一段声音”，次“⚡ 让它暴走”）。
+- Wild Mode 纯核心 `WildSession`：约 28s 确定性时间线（开场 → 3-2-1 → growLeft/growRight/growUp/branch/bloom → 中间一次“暴走！”4s → 冷静）。挑战无失败惩罚；识别只用现有 Energy slope / Spectral Centroid / recent Variation / Onset。
+- 暴走乘数：growth ×1.35 / 新枝长度 ×1.12 / 花尺寸 ×1.25；hard limits 仍由 PlantGenerator 保证（runtime 分支 ≤58/72、花 ≤41/64）。
+- Tree Grammar 2.0 渲染：PlantRenderer 用“从粗到细”的二次曲线填充画主干与各级枝，花只在末梢/树冠外围（距主干 >0.055）。
+- PlantRecord 新增 `growthMode`（旧 v1 / 旧 v2 存档均安全迁移为 normal）。
+- 测试：新增 `Stage65WildModeSelfTest`；`Stage65SoundTreeAudioSelfTest` 扩展 tree grammar 不变量 / migration / missing audio。
+- Runtime 钩子：`ECHO_FOREST_AUTOPILOT_WILD=1`（真实 App 路径 + 确定性脚本帧）；`ECHO_FOREST_AUTOPILOT_DETAIL_PLAY=1` 现在会逐个打开所有记录并播放各自的 M4A。
+
+### Stage 6.5+ Runtime 实测（2026-08-31，iPhone 17 Pro / iOS 26.5）
+
+- Normal 完整闭环：真实麦克风 2 次录音 → Growing → Result → 种进森林 → terminate → relaunch → Detail → 两棵各自播放自己的 M4A（`playbackActive=true`，文件各不相同）PASS。
+- Wild 完整闭环：Seed（“它正在暴走……/开始驯服”）→ 倒计时 → 5 挑战全部 `succeeded=true` → 暴走（OCR：`暴走！ 别让它失控！`）→ 冷静 → Result → 种进森林（forest.json `growthMode=wild` + 自己的 M4A）→ relaunch → Detail 播放 PASS。
+- REAL CLAP：NOT RUN（扬声器→模拟器麦克风峰值 energy≈0.31 < onset 阈值 0.35；确定性 onset/bloom 测试 PASS，真实拍手待真机）。
 
 ### Runtime Gate 实测（2026-08-31，iOS 模拟器 iPhone 17 Pro / iOS 26.5，宿主 Mac 麦克风）
 
@@ -65,6 +83,15 @@ Runtime 修复记录：tap 闭包 MainActor 隔离崩溃（已修复）；Result
 - 容器内 `forest.json`：version 1、plants=2、ID 唯一。
 - 持久化策略：只在“种进森林”保存；保存成功才采用快照；失败留在 Result 提示重试；损坏数据安全失败不 crash。
 
+### Stage 6.5 实测（2026-08-31，iOS 模拟器 iPhone 17 / iOS 26.5）
+
+- Tree Grammar：PASS（确定性自测覆盖 slope left/right、centroid upward、variation curvature、onset blossom/cluster、silence no-growth、hard limits、flower terminal twigs）。
+- Audio Memory：PASS（AVAudioRecorder 写 AAC/M4A；Audio analyzer 仍用 AVAudioEngine tap）。
+- PlantRecord：PASS（forest.json version 2，records + relative audioFilename；v1 plants archive 可迁移）。
+- Runtime：clean install + microphone grant + Growing + real recording + Result + plant in forest + terminate/relaunch + detail playback hook PASS。
+- 容器验证：PlantRecord 指向自己的 `<plantUUID>.m4a`；前两条 runtime 录音约 12.07s / 8.26s，第三条来自早期未终止长录制，metadata 30.00s，验证 max duration cap。
+- Playback：relaunch 后打开 Plant Detail 并调用 Play/Pause handler，`playbackActive=true`。
+
 权限配置注意：App Playground 的官方做法是在 Xcode 打开后，通过 Signing & Capabilities 添加 Microphone capability；仓库包根已附带 `Info.plist`（NSMicrophoneUsageDescription）作为尽力配置，需在 Xcode 中确认生效。
 
 真实状态以后以 `COMPLETION_LOG.md` 为准。
@@ -77,10 +104,12 @@ Runtime 修复记录：tap 闭包 MainActor 隔离崩溃（已修复）；Result
 1. Static Experience — DONE（静态 mock 闭环，未接音频）
 2. Audio Input — DONE（代码层；真机麦克风 NOT RUN）
 3. Audio Metrics — DONE（代码层；真机音频集成 NOT RUN）
-4. Growth Engine — DONE（代码层；真实麦克风耦合 NOT STARTED）
+4. Growth Engine — DONE（确定性 PlantModel / tree grammar）
 5. Real-time Coupling — DONE（模拟器实测 PASS；真机耦合 NOT RUN）
 6. Forest Persistence — DONE（模拟器 kill/relaunch 实测 PASS）
-7. Presentation Polish — 下一项
+6.5 Sound Tree Redesign & Audio Memory — DONE（模拟器录音/保存/重启/播放 PASS）
+6.5+ Wild Mode + Tree Grammar 2.0 + PlantRecord v2 — DONE（模拟器 Normal/Wild runtime PASS）
+7. Presentation Polish — PAUSED / NOT STARTED（不要继续，除非用户恢复）
 8. Submission Hardening
 
 不要跨层一次性实现大量功能。
@@ -107,16 +136,16 @@ docs(handoff): update current project state
 
 ## 当前最推荐的第一项代码任务
 
-Stage 6 已完成本地持久化。下一项任务是 Stage 7 — Presentation Polish：
+Stage 6.5+ 已完成。当前不要开始 Stage 7；下一步必须等用户明确恢复 Presentation Polish 或给出新的修正项。
 
-> 发芽、生长、叶片、开花、回到森林的动画与文字收敛；保持 3 分钟体验与离线约束。完成后按 `feat(rendering): ...` 提交。
+如需推进主页视觉，先读 `Design/README.md`：`Design/figma-design-draft.html` 是主页 UI 的 Figma 风格设计板（4 状态画板 + 设计令牌 + SwiftUI 映射），`Design/assets/trees/` 与 `Design/assets/plants/` 是程序化树/植物资产（SVG 源文件 + PNG），可拖入 Figma，也可作为 Stage 7 的视觉基准。注意：Design 为独立并行交付，未改动 App 代码。
 
 当前验证基线：
 
 - `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build` PASS
-- 模拟器 Runtime Gate + Stage 6 kill/relaunch 实测 PASS（详见 COMPLETION_LOG）
-- `swift build --package-path EchoForest.swiftpm` PASS；Stage 1–6 self-test 全部 PASS
-- 真机、拍手/onset、音频中断处理：NOT RUN / 未实现
+- 模拟器 Runtime Gate + Stage 6.5 audio memory + Stage 6.5+ Wild + detail playback 实测 PASS（详见 COMPLETION_LOG）
+- `swift build --package-path EchoForest.swiftpm` PASS；Stage 1–6.5+（8 个）self-test 全部 PASS
+- 真机、人耳听感、真实拍手、音频中断处理：NOT RUN / 未实现
 
 ## 绝对不要忘记
 

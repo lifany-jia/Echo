@@ -17,6 +17,18 @@ final class LiveGrowthController {
         session?.growthState
     }
 
+    var recentEnergySlope: Double {
+        session?.recentEnergySlope ?? 0
+    }
+
+    var smoothedCentroid01: Double {
+        session?.smoothedCentroid01 ?? 0.5
+    }
+
+    var smoothedVariation: Double {
+        session?.smoothedVariation ?? 0.3
+    }
+
     /// 开始一次新创作：全新 GrowthSession（植物 / GrowthState / 平滑值 / 事件计数全部重置）。
     @discardableResult
     func startNewSession(name: String, seed: UInt64) -> PlantModel {
@@ -32,6 +44,25 @@ final class LiveGrowthController {
     /// 固定 cadence 推进实时生长。
     func update(frame: SoundFrame, sessionProfile: SoundProfile, dt: TimeInterval) {
         session?.update(frame: frame, sessionProfile: sessionProfile, dt: dt)
+    }
+
+    /// Wild Burst 耦合乘数透传（normal 模式恒为 1）。
+    func update(
+        frame: SoundFrame,
+        sessionProfile: SoundProfile,
+        dt: TimeInterval,
+        growthMultiplier: Double,
+        lengthMultiplier: Double,
+        flowerSizeMultiplier: Double
+    ) {
+        session?.update(
+            frame: frame,
+            sessionProfile: sessionProfile,
+            dt: dt,
+            growthMultiplier: growthMultiplier,
+            lengthMultiplier: lengthMultiplier,
+            flowerSizeMultiplier: flowerSizeMultiplier
+        )
     }
 
     func reset() {

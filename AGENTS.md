@@ -307,6 +307,8 @@ Codex 每次工作必须尽量只推进一个可验证层级，不允许跨越�
 
 ## 12. Conventional Commit — 强制 Git 规则
 
+使用luna这类低模型做git管理
+
 所有提交必须符合 **Conventional Commits**。
 
 格式：

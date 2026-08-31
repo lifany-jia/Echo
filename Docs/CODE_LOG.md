@@ -4,7 +4,7 @@
 
 ## 1. 当前架构状态
 
-**代码状态：Stage 6 DONE（Forest Persistence；模拟器 kill/relaunch 实测 PASS）**
+**代码状态：Stage 6.5+ DONE（Tree Grammar 2.0 渲染 + Wild Mode + PlantRecord v2；模拟器 Normal/Wild runtime 实测 PASS）**
 
 当前结构：
 
@@ -27,6 +27,8 @@
 - `EchoForest.swiftpm/Sources/Plant/PlantGenerator.swift`：SoundProfile + seed → PlantStructure 的五维确定性映射。
 - `EchoForest.swiftpm/Sources/Plant/PlantGenerator.swift`（Stage 5）：新增 initialStructure / appendGrowthStep / appendFlower / normalizedCentroid01，支持增量生长。
 - `EchoForest.swiftpm/Sources/Plant/GrowthSession.swift`：实时耦合纯核心（SoundFrame 序列 → 逐步生长 PlantModel）。
+- `EchoForest.swiftpm/Sources/Plant/GrowthMode.swift`：normal / wild 创作模式（displayName / isWild）。
+- `EchoForest.swiftpm/Sources/Plant/WildSession.swift`：Wild Mode 纯核心——约 28s 确定性时间线（开场 → 3-2-1 → 5 挑战 → 暴走 → 冷静）、挑战识别（slope / centroid / recent variation / onset 持续判定）、暴走耦合乘数。
 - `EchoForest.swiftpm/Sources/App/LiveGrowthController.swift`：@MainActor 协调层，150ms cadence 驱动 GrowthSession。
 - `EchoForest.swiftpm/Sources/Rendering/PlantRenderer.swift`：PlantStructure → Canvas；不重算声音映射。
 - `EchoForest.swiftpm/Sources/App/EchoForestRootView.swift`：持有 flow + audio；Seed “开始创作”异步执行权限 → startListening → 成功才进入 Growing；拒绝/失败弹 alert。
@@ -39,7 +41,7 @@
 - `EchoForest.swiftpm/SelfTests/Stage6ForestSelfTest.swift`：持久化确定性自测。
 - `EchoForest.swiftpm/Info.plist`：NSMicrophoneUsageDescription（尽力配置；官方路径为 Xcode capability）。
 
-Stage 6 持久化尚未实现；PitchDetector 未实现（以 Spectral Centroid 代理）。旧的 MockPlantModel / MockSoundProfile / MockPlantCanvas 已删除。
+Stage 0–6.5+ 已实现；PitchDetector 未实现（以 Spectral Centroid 代理）。旧的 MockPlantModel / MockSoundProfile / MockPlantCanvas 已删除。Stage 7 Presentation Polish 按用户要求暂停。
 
 ---
 
@@ -389,6 +391,46 @@ Commit: `fix(audio): isolate tap callback from main actor` + `fix(plant): freeze
 ### Known risks
 - 真机未测；拍手/onset 真机验证 NOT RUN；音频中断处理未实现。
 
+## 2026-08-31 — Stage 6.5（待提交）
+
+Commit: `feat(plant): add sound tree audio memory`
+
+### Files
+- `Sources/Plant/PlantGenerator.swift`：Tree Grammar 改为 trunk / primary / secondary / terminal twig 层级；新增 energySlope 实时参数；硬上限 primary 7、secondary 20、twigs 45；onset 只在 terminal twigs 形成 blossom / blossom cluster；duration cap 改为 30s。
+- `Sources/Plant/GrowthSession.swift`：维护最近 raw energy 窗口并计算 slope；静音不增长；growth budget 提高灵敏度；先推进枝条再处理 onset，让当前活跃末梢可开花。
+- `Sources/Audio/AudioMemoryController.swift`：新增；AVAudioRecorder 写 AAC/M4A，AVAudioPlayer 播放本地录音，30s max recording。
+- `Sources/Persistence/ForestModel.swift`：新增 `PlantRecord`；ForestModel 从 `[PlantModel]` 升级为 `[PlantRecord]`，保留 `plants` 计算属性兼容。
+- `Sources/Persistence/ForestStore.swift`：forest archive version 2；保存 records；新增 `Audio/` 目录与 `<plantUUID>.m4a` helper；支持 v1 legacy plants archive 迁移。
+- `Sources/App/AppStage.swift` / `EchoForestFlow.swift`：新增 Plant Detail 阶段和 selectedRecord。
+- `Sources/App/EchoForestRootView.swift`：Growing start 同步开始录音；finish 停止录音并缓存结果；“种进森林”保存 PlantModel + SoundProfile + audio metadata；新增详情播放路径；autopilot 复用真实 finish 保存路径；新增 relaunch detail playback hook。
+- `Sources/Views/ForestView.swift`：网格从 plants 改为 records；点击植物进入详情。
+- `Sources/Views/PlantDetailView.swift`：新增；展示最终植物、Sound DNA、创建时间、Play/Pause。
+- `Sources/Views/SoundDNAView.swift` / `ResultView.swift`：Sound DNA 组件共享。
+- `SelfTests/Stage65SoundTreeAudioSelfTest.swift`：新增 Stage 6.5 确定性与音频持久化自测。
+- `SelfTests/Stage4PlantSelfTest.swift` / `Stage5CouplingSelfTest.swift`：更新 onset / growth cap 断言以匹配新树语法。
+
+### Behavior change
+- 用户现在能通过声音行为主动控制树结构：变小向左、变响向右、高频向上、低频横展、变化多更弯更分叉、敲击开花。
+- 每株植物保存为 PlantRecord，森林 JSON 只引用相对音频文件名；音频为本地 AAC/M4A。
+- Forest 中点击植物可进入详情并播放该株录音。
+
+### Design notes
+- Audio analysis 与 Audio recording 分离：分析仍用 AVAudioEngine tap；录音用 AVAudioRecorder，避免 callback 文件 IO。
+- blossom 不随机散布在树干；只挂 terminal twigs，连续 onset 通过小簇密度表达节奏。
+- Renderer 仍是程序化 Canvas，没有图片贴图；Stage 7 未继续。
+
+### Tests
+- `swift build --package-path EchoForest.swiftpm` PASS。
+- Stage 1–6 self-test PASS。
+- Stage 6.5 sound tree + audio memory self-test PASS。
+- `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build` PASS。
+- iOS Simulator runtime：真实录音、保存、terminate/relaunch、详情播放 hook PASS；M4A 为 AAC，时长约 12.07s / 8.26s / 30s cap。
+
+### Known risks
+- 本次详情播放用 relaunch runtime hook 调用同一 UI handler；未执行物理鼠标点击。
+- 真机、人耳听感、音频中断未验证。
+- 未实现 orphan audio cleanup（本阶段明确不做删除/导出/云同步）。
+
 ## 2026-08-31 — c26e338
 
 Commit: `feat(plant): add deterministic growth engine`
@@ -430,3 +472,66 @@ Commit: `feat(plant): add deterministic growth engine`
 ### Known risks
 - 真实音频尚未驱动植物（Stage 5）；当前植物由模拟 SoundProfile 驱动。
 - 生成的几何在单位空间外延可达约 ±3 单位，Renderer 依赖 boundingBox 自适应；需真机目检。
+
+## 2026-08-31 — Stage 6.5+（Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2）
+
+Commit: `feat(plant): add wild mode and sound memory`
+
+### Files
+- `Sources/Plant/GrowthMode.swift`：新增；normal / wild 枚举（displayName / isWild）。
+- `Sources/Plant/WildSession.swift`：新增；Wild 时间线（开场/倒计时/5 挑战/暴走/冷静，共约 28s）、挑战识别阈值与持续 tick、暴走乘数；纯核心可零依赖自测。
+- `Sources/Plant/GrowthSession.swift`：新增 `recentVariation`（最近能量窗口标准差）、update 的 growth/length/flowerSize 乘数、recentEnergySlope 暴露；variation 平滑改为 session 与 recent 取 max。
+- `Sources/Plant/PlantGenerator.swift`：LiveGrowthParams 增加 lengthMultiplier / flowerSizeMultiplier；appendFlower 优先选离主干 >0.055 的末梢（花不落 trunk 中间）。
+- `Sources/Rendering/PlantRenderer.swift`：改为从粗到细的二次曲线填充枝条（trunk 0.18 收尾、分支 0.42 收尾），替代统一线宽 stroke。
+- `Sources/Persistence/ForestModel.swift`：PlantRecord 增加 growthMode，自定义 Codable（旧存档 decodeIfPresent 默认 normal）。
+- `Sources/App/EchoForestFlow.swift`：currentMode 贯穿 Seed/Growing/Result；moveToSeed(mode:) / startGrowing(plant:mode:)。
+- `Sources/App/EchoForestRootView.swift`：wild 状态机接入 150ms cadence；Forest 双入口；Result 模式；保存 record 带 growthMode；新增 ECHO_FOREST_AUTOPILOT_WILD（确定性脚本帧走真实 App 路径）与 detail autopilot 多记录播放。
+- `Sources/Views/ForestView.swift`：主入口“种下一段声音” + 次入口“⚡ 让它暴走”；Wild 格带 ⚡。
+- `Sources/Views/SeedView.swift`：Wild 文案（“它正在暴走……/开始驯服”）。
+- `Sources/Views/GrowingView.swift`：WildPanel（挑战卡/倒计时/暴走/冷静 + 进度条），normal 反馈不变。
+- `Sources/Views/ResultView.swift` / `PlantDetailView.swift`：模式徽标 + Wild 收束文案。
+- `SelfTests/Stage65WildModeSelfTest.swift`：新增；挑战识别 5 项、噪声不误触发、失败不 crash、时间线/暴走位置、session reset、burst 硬上限、growthMode 往返。
+- `SelfTests/Stage65SoundTreeAudioSelfTest.swift`：扩展 trunk taper、parent>child thickness、hierarchy、terminal twig、blossom 不落 trunk、geometry finite、v1 迁移、旧 v2 无 growthMode、missing audio safe。
+
+### Behavior change
+- 用户可以通过声音手势主动控制树：变小→左、变响→右、更亮→向上、变化多→分叉/更弯、拍手→开花；静音不生长。
+- Wild Mode：2 种入口之一；约 28s 的“驯服暴走树”体验，5 个挑战没有失败惩罚，中间一次暴走（4s 表现增强），结束后生成真实 PlantModel 并可用同一套持久化/详情。
+- 每株植物（Plant + SoundProfile + Audio + Mode）绑定同一 PlantRecord；forest.json v2 只存相对 audioFilename。
+
+### Design notes
+- Wild 不重写 AudioAnalyzer：挑战识别全部基于现有 Energy / Energy slope / Spectral Centroid / Variation(recent) / Onset。
+- 暴走属于 growth presentation / coupling multiplier（analyzer 阈值不变，仅能量累积与长度/花尺寸放大），hard limits 仍在 PlantGenerator 强制。
+- recentVariation 解决“让声音变化起来”对近期变化的响应，而不是只看会话累计 stddev。
+- PlantRecord.growthMode 用 decodeIfPresent 默认 normal，v1 plants 与旧 v2 存档均安全读取。
+
+### Tests
+- Stage 1–6.5（8 个零依赖自测）全部 PASS；`swift build` PASS；`xcodebuild`（iPhone 17 Pro / iOS 26.5）PASS。
+- 模拟器 runtime：Normal 双录音 → 保存 → terminate/relaunch → 两棵各播自己的 M4A PASS；Wild 完整进入（5 挑战全成功 + 暴走 UI + 冷静 + wild 持久化 + relaunch 播放）PASS；REAL CLAP NOT RUN（energy 0.31 < 0.35）。
+
+### Known risks
+- 真机 / 真实拍手未验证；Wild 挑战识别参数（阈值 / 持续 tick）需真机手感校准。
+- 音频中断处理未实现。
+- 容器孤儿 M4A 不清理。
+
+---
+
+## Design 交付（2026-08-31，并行产物，未进 App 代码）
+
+### 目录
+- `Design/figma-design-draft.html`：Figma 风格主页设计板。CSS 变量即设计令牌（`--ink / --moss / --forest / --leaf / --sage / --mist / --moon / --amber / --fire`），与 `ForestView.swift` 现有 `Color(red:green:blue:)` 取值对齐；右侧面板模拟 Figma 属性检查器。
+- `Design/assets/trees/*.svg(png)`：7 幅概念树，1200×1500；`Design/assets/plants/*.svg(png)`：6 棵森林小植物，240×300。
+- `Design/scripts/generate_trees.py`：程序化艺术生成器。关键设计：
+  - `Art` 类统一管理 defs（径向/线性渐变、blur、grain 噪点）与元素，`finish()` 自动补柔光滤镜并叠加胶片颗粒。
+  - 枝条用「逐段变宽折线」模拟自然锥度（`tapered()`），递归 `trace()` 支持弯曲 / 折角 / 分叉 / 偏向控制。
+  - 六种声音性格 = 六组不同的几何参数：低音粗干厚冠、高音细枝上扬、节奏折角+开花、长音圆冠、旋律 S 形、暴走锯齿+闪电。
+  - 确定性种子（11/22/33/44/55/66/77），任何机器重复生成结果一致，符合 App 内「可复现生成」理念。
+
+### 设计决策
+- 单一强调色琥珀：深绿底（墨夜→林间→琥珀地平线渐变）+ 月白文字 + 萤火氛围点。
+- 圆角体系：容器 28 / 卡片 18 / 小组件 12 / 交互胶囊 999，全板一致。
+- 主页 4 状态画板：空森林（种子+波纹）、已有森林（林中空地网格）、新植物高亮（琥珀光环+Sound DNA 铭牌）、暴走模式（琥珀进度条+主次 CTA 对调）。
+- 树画廊的每幅图都对应 AGENTS.md 的声音→植物映射表（RMS/频谱/Onset/Duration/Variation），可直接作为 Stage 7 视觉基准与宣传图。
+
+### 风险 / 备注
+- 位图渲染依赖本机 Chrome headless；仓库内保留 SVG 源文件，PNG 可随时重导出。
+- 未提供 `.fig` 原生文件；Figma 以 SVG/PNG 导入。

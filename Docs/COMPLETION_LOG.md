@@ -20,10 +20,12 @@
 | 1 | Static Experience | DONE | `swift build` PASS + flow self-test PASS |
 | 2 | Audio Input | DONE | 模拟器实测 PASS（权限允许/拒绝、真实 buffer）；真机 NOT RUN |
 | 3 | Audio Metrics | DONE（代码层） | build PASS + 确定性 DSP 自测 PASS；真机音频集成 NOT RUN |
-| 4 | Growth Engine | DONE（代码层） | build PASS + generator 自测 PASS；实时耦合 NOT STARTED |
+| 4 | Growth Engine | DONE | build PASS + generator 自测 PASS + Stage 6.5 tree grammar |
 | 5 | Real-time Coupling | DONE | 模拟器实测 PASS（声音驱动生长、频率响应、Result 真实 DNA）；真机耦合 NOT RUN |
 | 6 | Forest Persistence | DONE | build PASS + 持久化自测 PASS + kill/relaunch 实测 PASS |
-| 7 | Presentation Polish | NOT STARTED | NOT RUN |
+| 6.5 | Sound Tree Redesign & Audio Memory | DONE | Stage 6.5 自测 PASS + 模拟器录音/保存/重启/详情播放 PASS |
+| 6.5+ | Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2 | DONE | Stage 6.5 wild 自测 PASS + 模拟器 Normal/Wild runtime PASS |
+| 7 | Presentation Polish | PAUSED / NOT STARTED | 按用户要求暂停，未继续 |
 | 8 | Submission Hardening | NOT STARTED | NOT RUN |
 
 ---
@@ -386,3 +388,138 @@
 
 ### Commit
 - `4463b39 feat(persistence): save and restore forest locally`
+
+## 2026-08-31 17:10 — Stage 6.5 Sound Tree Redesign & Audio Memory
+
+**Status:** DONE（Stage 7 / Presentation Polish 暂停，未继续）
+
+### 完成
+- Tree Grammar 重做为自然树拓扑：1 trunk + primary branches + secondary branches + terminal twigs；硬上限为 primary 7、secondary 20、terminal twigs 45、总分枝 72。
+- 声音规则真实进入生长核心：
+  - silence：不推进结构。
+  - soft / medium / loud energy：控制增长速度与新枝粗细。
+  - recent energy slope：下降向左，升高向右。
+  - spectral centroid：低频更横向，高频更向上。
+  - variation：低变化更直，高变化更弯、更容易形成丰富分支。
+  - onset：只在 terminal twigs 上生成 blossom；连续 onset 形成小花簇。
+  - duration：控制主干成熟度、总体 scale 和静态生成预算（30s cap）。
+- Renderer 保持程序化 PlantModel / PlantRenderer：枝条骨架仍可见，主干粗、子枝逐级变细，花朵为 5 瓣程序化 blossom，未使用参考图贴图。
+- Audio Memory：
+  - 新增 `AudioMemoryController`，用 `AVAudioRecorder` 写 AAC/M4A，不在 audio callback 写文件。
+  - 单次录制最大 30s。
+  - 音频文件路径：`Application Support/EchoForest/Audio/<plantUUID>.m4a`。
+  - 保存失败 / audio 缺失安全处理；JSON 成功但音频不存在时详情不崩溃。
+- PlantRecord persistence：
+  - `ForestModel` 改为保存 `[PlantRecord]`，保留 `plants` 计算属性兼容旧调用。
+  - `forest.json` version 升至 2，只存 metadata + 相对 `audioFilename`，不 base64 音频。
+  - 支持 v1 `plants` archive 温和迁移为无音频 PlantRecord。
+- Plant Detail：
+  - Forest 中可点植物进入详情。
+  - 展示最终植物、Sound DNA、创建时间、Play/Pause。
+  - 播放使用 `AVAudioPlayer`；播放时植物轻微 breathing/highlight，不重新运行 Growth Engine。
+- 测试：
+  - 新增 `SelfTests/Stage65SoundTreeAudioSelfTest.swift` 覆盖 slope left/right、centroid vertical、variation curvature、onset blossom/cluster、silence no-growth、same frames+seed determinism、branch hierarchy/hard limits、flower valid twigs、audio file fixture、PlantRecord save/load、relaunch persistence、playback prepare、second plant different audio file、clean install empty forest。
+  - 更新 Stage 4 onset 断言：onset 语义改为 blossom events，不再要求增加 leaf events。
+  - 更新 Stage 5 growth cap 断言为新硬上限。
+
+### 验证
+- `swift build --package-path EchoForest.swiftpm` → PASS
+- Stage 1 flow self-test → PASS
+- Stage 2 audio state self-test → PASS
+- Stage 3 metrics self-test → PASS
+- Stage 4 plant generator self-test → PASS
+- Stage 5 coupling self-test → PASS
+- Stage 6 persistence self-test → PASS
+- Stage 6.5 sound tree + audio memory self-test → PASS
+- `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build` → PASS
+
+### Simulator Runtime（iPhone 17 / iOS 26.5）
+- Clean install + microphone grant + autopilot Growing 路径：PASS。
+- 创建植物 / 实际录制声音 / 结束 / 种进森林：PASS。
+- 容器 `forest.json`：version 2，PlantRecord 记录存在。
+- 本次验证产生 3 条有效记录（前两条为预期两轮，第三条来自最早一次未及时终止的长录制，验证 30s cap）；每条记录均指向自己的 UUID M4A：
+  - `97370AD1...m4a`：metadata 12.07s，`afinfo` duration 12.072925s，AAC。
+  - `F64B1ADB...m4a`：metadata 8.27s，`afinfo` duration 8.264853s，AAC。
+  - `224F9ADB...m4a`：metadata 30.00s，30s cap。
+- terminate/relaunch 后 detail playback hook：PASS（打开 Plant Detail，`playbackActive=true`，播放第一株记录自己的 M4A）。
+- 两株植物关联不同 audio file：PASS。
+
+### 未完成 / 风险
+- 详情播放的“点击”路径通过同一 UI handler 与 runtime hook 验证；本次未用物理鼠标坐标手动点击。
+- 模拟器录音为宿主麦克风/环境声；“播放声音与本次创作一致”按文件时长、UUID 关联、AAC 可播放验证，未做人耳听感人工判定。
+- 音频中断（电话/媒体服务 reset）仍未实现。
+- 目录中可能存在未引用的坏/旧 M4A；PlantRecord 不会指向它，详情页也不会崩溃。后续可加 orphan cleanup，但本阶段不实现删除/清理。
+- Stage 7 仍为 NOT STARTED/PAUSED。
+
+### Commit
+- 待提交：`feat(plant): add sound tree audio memory`
+
+## 2026-08-31 18:30 — Stage 6.5+ Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2
+
+**Status:** DONE（模拟器 runtime 实测 PASS；真机 / 真实拍手仍 NOT RUN）
+
+### 完成
+- `GrowthMode`（normal / wild）：Normal 保持原有诗意创作；Wild 是“驯服失控的声音树”的惊喜模式，两种模式共享同一套 PlantModel / PlantRenderer / persistence。
+- `WildSession` 纯核心：确定性时间线约 28 秒（开场 2s → 3-2-1 倒计时 3s → 5 个挑战各 3.5s → 中间一次暴走 4s → 冷静 1.5s）。
+  - 5 种 `WildChallenge`：growLeft（往左！让声音慢慢变小）/ growRight（往右！让声音越来越响）/ growUp（冲上去！更明亮/更高）/ branch（分叉！让声音变化起来）/ bloom（开花！拍手或敲桌）。
+  - 识别只用现有 AudioAnalyzer 指标：Energy slope（持续 ≥6 tick ≈0.9s）、Spectral Centroid（≥0.48 ≈0.6s）、Variation（recent variability ≥0.32 ≈1.2s）、真实 Onset。
+  - 无 Wrong / Failed / ❌ / 分数：挑战未达成不显示失败，树仍按真实声音继续生长；`challenge failure 不 crash` 有确定性测试。
+  - 暴走窗口：growth sensitivity ×1.35、新枝长度 ×1.12、开花尺寸 ×1.25；不触碰 AudioAnalyzer 阈值，hard limits 由 PlantGenerator 保证（runtime 实测分支 ≤58 ≤ 72、花 ≤41 ≤ 64）。
+- 用户主动声音手势：变小→左、变大→右（recent energy slope，8 帧窗口 ≈1.2s，±0.012 阈值 + EMA smoothing）；低 centroid→横向、高 centroid→向上；变化多→更弯更分叉（新增 recentVariation，最近能量窗口标准差）；拍手→末梢开花，连续 onset→花簇；静音不生长。
+- Tree Grammar 2.0 渲染：PlantRenderer 改为“从粗到细”的二次曲线填充枝条（trunk 端粗 1.0→0.18，分支 1.0→0.42），主干底部粗向上收细、一级/二级/末梢层级分明、花只长在末梢与树冠外围；仍是纯程序化 Canvas，无固定 PNG。
+- Forest 双入口：主入口“种下一段声音”，次入口“⚡ 让它暴走”（surprise mode，不做复杂 mode selection）；Wild 植物在森林格与详情页带 ⚡ 标记。
+- Result / Detail 展示模式（Normal / Wild），Wild 增加“你驯服了一棵失控的声音树。”。
+- PlantRecord 新增 `growthMode`；旧 v1 plants 存档迁移为 normal/无音频；旧 v2（无 growthMode 键）decode 默认 normal，不 crash。
+- Wild Burst 后“呼……它冷静下来了。”只出现一次；结束后自动进入 Result。
+- 测试：新增 `Stage65WildModeSelfTest`；扩展 `Stage65SoundTreeAudioSelfTest`（trunk taper、parent>child thickness、branch hierarchy、terminal twig 识别、blossom 不落 trunk 中间、geometry finite、migration、missing audio safe、growthMode round-trip）。
+- Runtime：新增 `ECHO_FOREST_AUTOPILOT_WILD=1`（真实 App 路径 + 确定性脚本帧，与 self-test 同源）与 detail autopilot 多记录播放验证。
+
+### 验证
+- Command: `xcrun swift build --package-path EchoForest.swiftpm`（DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer）
+- Result: PASS（无警告）
+- Command: Stage 1 / 2 / 3 / 4 / 5 / 6 / 6.5 sound tree+audio / 6.5 wild self-tests
+- Result: 全部 PASS（8 个零依赖自测）
+- Command: `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' build`
+- Result: PASS（BUILD SUCCEEDED）
+- Simulator runtime（iPhone 17 Pro / iOS 26.5）：
+  - Normal 完整闭环：真实麦克风 2 次录音（12.2s / 7.9s）→ Growing（steps 0→6/5）→ Result → 种进森林 → terminate → relaunch → Plant Detail → 两棵各自播放自己的 M4A：PASS（`AUTOPILOT_DETAIL record 1/2 ... playbackActive=true`，文件各不相同，无串音频）。
+  - Wild 实际进入：Seed（“它正在暴走……/开始驯服”）→ 倒计时 → growLeft/growRight/growUp/branch/bloom 全部 `succeeded=true`（OCR：往左/往右/冲上去/分叉/开花 + “好，它……”成功文案）→ 暴走（OCR：`暴走！ 别让它失控！`，steps 在暴走窗口加速 23→37）→ 冷静（“呼……它冷静下来了。”）→ Result → 种进森林 → forest.json `growthMode=wild` + 自己的 M4A → relaunch → Detail 播放 wild 录音 PASS。
+  - REAL CLAP：NOT RUN（扬声器→模拟器麦克风路径峰值 energy≈0.31 < onset 阈值 0.35；确定性 onset / bloom 测试 PASS，真实拍手待真机）。
+- 截图 OCR（Vision）：Wild Seed / 挑战 / 暴走 / 冷静 / Result / Forest 文案均正确渲染。
+
+### 未完成 / 风险
+- 真机（iPhone）未验证；REAL CLAP NOT RUN。
+- Wild 挑战输入在模拟器用确定性脚本帧驱动（真实 App 路径）；真实麦克风下的 challenge 识别手感需真机确认。
+- 音频中断（电话 / 媒体服务 reset）仍未实现。
+- 容器中仍可能有孤儿 M4A（不做删除/清理，详情页不引用即不崩溃）。
+- 仓库根出现未跟踪的 `Design/`（并行工作产物），未纳入本次提交；除它外 git status 保持 clean。
+
+### Commit
+- 见本阶段提交（`feat(plant): ...`）
+
+---
+
+## 并行交付：Design 主页 UI 设计稿与树的表达（2026-08-31）
+
+**Status:** DONE（视觉资源与设计板已生成并质检；未改动 App 代码）
+
+### 完成
+- `Design/figma-design-draft.html`：Figma 风格主页 UI 设计稿（浏览器直接打开），含 4 个主页状态画板（空森林 / 已有森林 / 新植物高亮 / 暴走模式）、概念主视觉、树的表达画廊、设计令牌（色彩 / 字体 / 圆角 / 间距 / 动效 / SwiftUI 映射）。
+- `Design/assets/trees/`：7 幅树的表达（SVG + 1200×1500 PNG）：概念声音树、低音厚土根、高音向光枝、节奏拍手花、长音绵长冠、旋律蜿蜒脉、暴走电光树。
+- `Design/assets/plants/`：6 棵主页森林小植物（SVG + 240×300 PNG）：低语杉 / 风铃藤 / 琥珀花 / 夜莺柳 / 云冠榆 / 电光棘。
+- `Design/scripts/generate_trees.py`：纯标准库程序化生成器，确定性随机种子，可重复生成全部 SVG。
+- `Design/README.md`：设计方向、文件结构、Figma 导入方式、声音→树映射表。
+
+### 验证
+- Command: `python3 Design/scripts/generate_trees.py` → 13 个 SVG 全部生成，`xmllint --noout` 校验通过。
+- Command: Chrome headless 渲染 → 7 幅树 PNG + 6 棵植物 PNG + 设计板整板预览（1680×6500）成功，尺寸符合设计（1200×1500 / 240×300）。
+- 像素抽样校验：7 幅树非空白，色调符合各自设计意图（低音最暗绿、暴走偏琥珀暖色）。
+- 设计板探针质检：HTML 标签配对无错；23 处图片引用全部加载成功（broken=0）；画板/标注坐标符合预期；无横向溢出。
+
+### 未完成 / 风险
+- AI 位图插画（如梦幻森林油画）未生成：当前会话无内置 image_gen 工具且未配置 `OPENAI_API_KEY`；如需可通过 CLI 备选路径生成（见 imagegen 技能）。
+- 设计稿为高保真规格板而非 `.fig` 原生文件；SVG/PNG 可拖入 Figma 直接使用。
+- 未改动 `ForestView.swift` 等实现代码；设计令牌区提供 SwiftUI 映射，供 Stage 7 恢复时对照。
+
+### Commit
+- `docs(design): add homepage UI design draft and procedural tree artwork`（仅含 `Design/`，未混入其他未提交改动）

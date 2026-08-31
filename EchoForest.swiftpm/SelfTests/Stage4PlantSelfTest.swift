@@ -82,7 +82,7 @@ struct Stage4PlantSelfTest {
         let manyOnset = PlantGenerator.structure(profile: profile(onset: 8), seed: 7)
         expect(noOnset.metadata.flowerCount == 0, "0 onset should produce no flowers")
         expect(manyOnset.metadata.flowerCount > 0, "onsets should produce flowers")
-        expect(manyOnset.metadata.leafCount > noOnset.metadata.leafCount, "onsets should add leaf events")
+        expect(manyOnset.metadata.flowerCount > noOnset.metadata.flowerCount, "onsets should add blossom events")
 
         // 8. Duration 单变量
         let short = PlantGenerator.structure(profile: profile(duration: 2), seed: 7)

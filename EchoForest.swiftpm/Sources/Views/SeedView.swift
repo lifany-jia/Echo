@@ -1,8 +1,13 @@
 import SwiftUI
 
 struct SeedView: View {
+    let mode: GrowthMode
+    let isStarting: Bool
     let onStartGrowing: () -> Void
     let onCancel: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
 
     var body: some View {
         ZStack {
@@ -27,25 +32,38 @@ struct SeedView: View {
 
                 SeedMark()
                     .frame(width: 168, height: 168)
+                    .scaleEffect(breathing ? 1.06 : 1.0)
+                    .opacity(breathing ? 1.0 : 0.92)
+                    .onAppear {
+                        guard !reduceMotion else { return }
+                        withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
+                            breathing = true
+                        }
+                    }
 
-                Text("给它一点声音。")
+                Text(mode.isWild ? "它正在暴走……给它一点声音。" : "给它一点声音。")
                     .font(.title2.weight(.medium))
                     .foregroundStyle(.white)
 
-                Text("首次开始会请求麦克风权限。")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.64))
+                Text(mode.isWild ? "用声音驯服它 · 首次开始会请求麦克风权限" : "首次开始会请求麦克风权限。")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.45))
 
                 Spacer()
 
                 Button(action: onStartGrowing) {
-                    Text("开始创作")
+                    Text(
+                        isStarting
+                            ? "正在唤醒种子…"
+                            : (mode.isWild ? "开始驯服" : "开始创作")
+                    )
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.46, green: 0.67, blue: 0.39))
+                .tint(mode.isWild ? Color(red: 0.82, green: 0.52, blue: 0.28) : Color(red: 0.46, green: 0.67, blue: 0.39))
+                .disabled(isStarting)
             }
             .padding(28)
         }

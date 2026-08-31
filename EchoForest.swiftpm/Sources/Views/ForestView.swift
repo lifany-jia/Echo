@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct ForestView: View {
-    let plantedPlants: [PlantModel]
+    let plantedRecords: [PlantRecord]
+    var highlightedPlantID: UUID? = nil
     let onStart: () -> Void
+    let onStartWild: () -> Void
+    let onSelectRecord: (PlantRecord) -> Void
 
     var body: some View {
         ZStack {
@@ -21,24 +24,39 @@ struct ForestView: View {
 
                 Spacer(minLength: 8)
 
-                if plantedPlants.isEmpty {
+                if plantedRecords.isEmpty {
                     EmptyForestPlot()
                         .frame(maxWidth: 360)
                 } else {
-                    PlantedForestGrid(plants: plantedPlants)
+                    PlantedForestGrid(
+                        records: plantedRecords,
+                        highlightedPlantID: highlightedPlantID,
+                        onSelectRecord: onSelectRecord
+                    )
                 }
 
                 Spacer(minLength: 8)
 
-                Button(action: onStart) {
-                    Text("种下一段声音")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                VStack(spacing: 10) {
+                    Button(action: onStart) {
+                        Text("种下一段声音")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.46, green: 0.67, blue: 0.39))
+                    .controlSize(.large)
+
+                    Button(action: onStartWild) {
+                        Text("⚡ 让它暴走")
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color(red: 0.86, green: 0.62, blue: 0.34))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.46, green: 0.67, blue: 0.39))
-                .controlSize(.large)
             }
             .padding(28)
         }
@@ -80,28 +98,93 @@ private struct EmptyForestPlot: View {
 }
 
 private struct PlantedForestGrid: View {
-    let plants: [PlantModel]
+    let records: [PlantRecord]
+    let highlightedPlantID: UUID?
+    let onSelectRecord: (PlantRecord) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("已种下 \(plants.count) 棵植物")
-                .font(.headline)
-                .foregroundStyle(.white.opacity(0.88))
+            Text("森林里有 \(records.count) 棵植物")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.55))
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 12)], spacing: 12) {
-                ForEach(plants) { plant in
-                    VStack(spacing: 6) {
-                        PlantRenderer(structure: plant.structure)
-                            .frame(height: 110)
-
-                        Text(plant.name)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.78))
-                            .lineLimit(1)
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 14)], spacing: 14) {
+                    ForEach(records) { record in
+                        PlantedPlantTile(
+                            plant: record.plant,
+                            isWild: record.growthMode.isWild,
+                            isHighlighted: highlightedPlantID == record.id,
+                            reduceMotion: reduceMotion
+                        )
+                        .onTapGesture {
+                            onSelectRecord(record)
+                        }
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
                     }
-                    .padding(8)
-                    .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
                 }
+                .padding(.horizontal, 2)
+                .animation(
+                    reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.8),
+                    value: records.map(\.id)
+                )
+            }
+            .frame(maxHeight: 380)
+        }
+    }
+}
+
+private struct PlantedPlantTile: View {
+    let plant: PlantModel
+    let isWild: Bool
+    let isHighlighted: Bool
+    let reduceMotion: Bool
+    @State private var entering = true
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                if isHighlighted {
+                    Circle()
+                        .fill(Color(red: 0.78, green: 0.72, blue: 0.42).opacity(entering ? 0.24 : 0.06))
+                        .scaleEffect(entering ? 0.72 : 1.15)
+                        .blur(radius: 8)
+                }
+
+                PlantRenderer(structure: plant.structure)
+                    .frame(height: 112)
+
+                if isWild {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Text("⚡")
+                                .font(.caption)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.black.opacity(0.28), in: Capsule())
+                        }
+                        Spacer()
+                    }
+                }
+            }
+
+            Text(plant.name)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(1)
+        }
+        .padding(10)
+        .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+        .scaleEffect(isHighlighted && entering && !reduceMotion ? 0.92 : 1)
+        .onAppear {
+            guard isHighlighted, !reduceMotion else {
+                entering = false
+                return
+            }
+            withAnimation(.easeOut(duration: 0.75)) {
+                entering = false
             }
         }
     }
@@ -131,6 +214,6 @@ struct SeedMark: View {
                 .rotationEffect(.degrees(-18))
                 .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
         }
-        .accessibilityLabel("静态种子")
+        .accessibilityLabel("种子")
     }
 }

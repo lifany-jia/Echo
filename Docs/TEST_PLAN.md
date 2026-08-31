@@ -198,6 +198,54 @@ P2：视觉、手感、边界质量问题。
 
 ---
 
+## 9.5 Stage 6.5+ — Wild Mode 与 Tree Grammar 2.0
+
+### Tree Grammar 不变量（确定性）
+
+- [ ] P0 trunk taper 合法：所有一级枝比主干细，所有子枝比父枝细
+- [ ] P0 branch hierarchy 正确：depth1 挂 trunk，depth2 挂 depth1，depth3 挂 depth2
+- [ ] P0 hard branch limits：primary ≤7、secondary ≤20、twigs ≤45、总分枝 ≤72
+- [ ] P0 terminal twig 可识别：depth==3 且无子枝
+- [ ] P0 blossom 不生成在 trunk 中间（距主干线段 >0.05）
+- [ ] P0 geometry finite 且在合理范围
+
+### 固定帧序列映射
+
+- [ ] P0 decreasing energy → left tendency
+- [ ] P0 increasing energy → right tendency
+- [ ] P0 high centroid → 更向上
+- [ ] P0 low centroid → 更横向
+- [ ] P0 high variation → 更弯 / 更多分叉（含 recent variability）
+- [ ] P0 onset → blossom；连续 onset → blossom cluster
+- [ ] P0 silence → 不生长
+- [ ] P0 same frames + same seed → same structure
+
+### Wild Mode
+
+- [ ] P0 growLeft / growRight / growUp / branch / bloom 挑战都能被正确识别
+- [ ] P0 短噪声不误触发（需要持续满足）
+- [ ] P0 challenge failure 不 crash：不满足时会话照常完成，树仍按真实声音生长
+- [ ] P0 Wild Burst 不突破 hard limits（高能量 + 乘数持续驱动）
+- [ ] P0 Wild session reset：新会话不共享挑战状态
+- [ ] P0 时间线 20–30s，暴走恰好一次且位于中间
+
+### Audio / Persistence v2
+
+- [ ] P0 recording file created；duration > 0
+- [ ] P0 不同植物使用不同 audio filename
+- [ ] P0 PlantRecord（含 growthMode）encode / decode
+- [ ] P0 missing audio file 安全（不 crash）
+- [ ] P0 old persistence（v1 plants / 旧 v2 无 growthMode）安全迁移
+- [ ] P0 relaunch 后两株植物各播自己的录音，不串音频
+
+### Simulator Runtime
+
+- [ ] P0 Forest → Normal → 录音 → Growing → Result → Save → terminate → relaunch → Detail → playback
+- [ ] P0 实际进入 Wild Mode（确定性脚本帧走真实 App 路径）验证 left/right/up/variation/bloom
+- [ ] P2 REAL CLAP：真机拍手（模拟器无法达到阈值时记为 NOT RUN，不允许伪造 PASS）
+
+---
+
 ## 10. Stage 8 — 参赛验收
 
 ### 3 分钟计时验收

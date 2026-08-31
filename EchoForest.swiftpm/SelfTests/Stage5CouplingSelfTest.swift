@@ -151,7 +151,7 @@ struct Stage5CouplingSelfTest {
         )
 
         // 上限
-        expect(loud.growthState.currentStep <= 16, "growth steps should respect step cap")
+        expect(loud.growthState.currentStep <= PlantGenerator.maxBranchCount, "growth steps should respect step cap")
         expect(loud.plant.structure.branches.count <= PlantGenerator.maxBranchCount, "branch count should respect cap")
         expect(withOnsets.plant.structure.metadata.flowerCount <= PlantGenerator.maxFlowers, "flower count should respect cap")
 
