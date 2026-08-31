@@ -616,6 +616,22 @@ Commit: `03c672b feat(plant): add wild mode and sound memory`
 
 ---
 
+## 树形 / 生长经济修复（2026-08-31）
+
+### Files
+- `Sources/Plant/GrowthSession.swift`：`activationThreshold 0.035` / `stepEnergyThreshold 0.10` / `growthSensitivity 1.8`，让普通说话音量稳定生长。
+- `Sources/Plant/PlantGenerator.swift`：厚度改单位空间比例（trunk `(0.030+0.055e)*scale*slim`；primary/secondary/twig 相对父级 0.44–0.5；末梢下限 0.004）；移除旧 `max(...,0.7/1.0)` 钳制；一级主枝带叶；叶/花尺寸放大。
+- `SelfTests/Stage65SoundGestureSelfTest.swift`：pause 测试前置帧 6→3，避免新经济下提前触达主枝上限。
+
+### Design notes
+- 树形目标：trunk 占主干长度 5%–10% 宽（真实树比例），逐级收细；渲染器不再出现“柱子树”。
+- 生长手感：正常说话 30s 会话应长出 20–40 根枝条 + 树冠叶；硬上限仍由 PlantGenerator 保证。
+
+### Tests
+- `swift build` PASS；9/9 自测 PASS；真机安装启动 PASS。
+
+---
+
 ## App 图标（2026-08-31）
 
 ### Files

@@ -617,6 +617,28 @@
 
 ---
 
+## 真机树形 / 生长修复（2026-08-31）
+
+**Status:** DONE（真机安装运行；数值验证树形与生长经济；视觉效果由用户真机确认）
+
+### 问题（真机数据佐证）
+- 用户手机存档实测：37.5 秒会话只长出 2 根枝条、0 片叶子 → 生长经济阈值过高（激活 0.06 / 单步 0.25 / 无灵敏度），普通说话音量几乎不长树。
+- 分支厚度被旧代码 `max(..., 0.7/1.0)` 钳到 0.7–1.0 单位，渲染器再乘约 50–150 倍画布缩放 → 画出来是粗柱子而不是树（实测 trunkThick=10.41，渲染后约 1500pt）。
+
+### 修复
+- `GrowthSession`：激活阈值 0.06→0.035、单步能量 0.25→0.10、新增 `growthSensitivity=1.8`（普通说话 energy≈0.05–0.25 时约 0.5–1.5s 长一步；静音仍不生长）。
+- `PlantGenerator`：厚度改为单位空间合理值（trunk 0.03–0.11、primary ≈0.46×trunk、secondary ≈0.5×parent、twig ≈0.44×parent；下限 0.004/0.006），去掉 0.7/1.0 钳制；一级主枝也带叶；叶/花尺寸略放大。
+- 数值验证（energy 0.35 的树）：trunk 0.0687 → Result 大图约 9.9pt、Forest 小图约 3.4pt；primary 5 根 / secondary 10 / twig 18；33 叶 6 花，逐级收细。
+
+### 验证
+- `swift build` PASS；9 个零依赖自测全部 PASS（pause/resume 测试适配新经济，前置帧 6→3）。
+- 真机：重新构建 → 安装 → 解锁后启动成功。
+
+### Commit
+- `fix(plant): retune growth economy and branch thickness for natural tree shape`
+
+---
+
 ## App 图标（2026-08-31）
 
 **Status:** DONE（像素级几何校验通过；未人工目检，视觉以用户确认为准）
