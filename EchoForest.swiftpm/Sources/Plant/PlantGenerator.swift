@@ -265,11 +265,13 @@ enum PlantGenerator {
 
         let tierThickness: Double
         switch tier {
-        case 1: tierThickness = structure.trunk.thickness * (0.36 + energy * 0.24)
-        case 2: tierThickness = parent.thickness * (0.48 + energy * 0.14)
-        default: tierThickness = parent.thickness * (0.42 + energy * 0.12)
+        case 1: tierThickness = structure.trunk.thickness * (0.46 + energy * 0.18)
+        case 2: tierThickness = parent.thickness * (0.50 + energy * 0.12)
+        default: tierThickness = parent.thickness * (0.44 + energy * 0.10)
         }
-        let thickness = max(tierThickness, tier == 3 ? 0.7 : 1.0)
+        // 只设极小的下限（末梢允许比 0.004 更细但不得为 0），
+        // 绝不能像旧版那样钳到 0.7-1.0（在渲染缩放后等于画柱子）。
+        let thickness = max(tierThickness, tier == 3 ? 0.004 : 0.006)
         let curvature = childLength * (0.025 + 0.32 * variation) * (0.75 + 0.35 * random.double01())
         let perpendicular = CGPoint(x: -desiredDirection.y, y: desiredDirection.x)
         let curveSign: Double = random.double01() < 0.5 ? -1 : 1
@@ -288,7 +290,8 @@ enum PlantGenerator {
         )
         structure.branches.append(child)
 
-        if tier >= 2 && structure.metadata.leafCount < maxLeaves {
+        // 一级主枝也会带叶，让树在生长早期就有树冠轮廓（参考 Design/assets/trees）。
+        if tier >= 1 && structure.metadata.leafCount < maxLeaves {
             let leafPosition = CGPoint(
                 x: end.x + (random.double01() - 0.5) * 0.04,
                 y: end.y - 0.018 + (random.double01() - 0.5) * 0.025
@@ -297,7 +300,7 @@ enum PlantGenerator {
                 PlantEvent(
                     type: .leaf,
                     position: leafPosition,
-                    size: 0.014 + energy * 0.020,
+                    size: 0.020 + energy * 0.026,
                     depth: tier
                 )
             )
@@ -350,7 +353,7 @@ enum PlantGenerator {
                 PlantEvent(
                     type: .flower,
                     position: position,
-                    size: (0.020 + energy * 0.010 + variation * 0.010) * flowerSizeMultiplier,
+                    size: (0.026 + energy * 0.012 + variation * 0.012) * flowerSizeMultiplier,
                     depth: tip.depth
                 )
             )
@@ -386,7 +389,9 @@ enum PlantGenerator {
         let scale = 0.7 + 0.9 * duration01
         let heightFactor = 0.45 + 0.55 * centroid01
         let slimFactor = 1.15 - 0.30 * centroid01
-        let trunkThickness = max((5 + 15 * energy) * scale * slimFactor, 1.0)
+        // 单位空间内的树干粗细：约为主干长度的 5%-10%（0.03-0.11），
+        // 渲染器会再乘画布缩放，因此这里必须是小数值；过大=画成柱子。
+        let trunkThickness = max((0.030 + 0.055 * energy) * scale * slimFactor, 0.015)
         let trunkLeanX = (0.5 - centroid01) * 0.06 * heightFactor
         return NormalizedInput(
             energy: energy,

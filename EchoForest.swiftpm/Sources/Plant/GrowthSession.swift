@@ -38,21 +38,24 @@ struct GrowthSession: Equatable {
     private var pendingPauseResume = false
     /// 恢复事件以短闪光窗口暴露给 UI（约 0.9s），避免 400ms 轮询漏掉单 tick 事件。
     private var resumeFlashRemaining = 0
+    private let growthSensitivity: Double
 
     init(
         profile: SoundProfile,
         seed: UInt64,
         name: String,
         maxSteps: Int = PlantGenerator.maxBranchCount,
-        activationThreshold: Double = 0.06,
-        stepEnergyThreshold: Double = 0.25,
-        smoothingFactor: Double = 0.35
+        activationThreshold: Double = 0.035,
+        stepEnergyThreshold: Double = 0.10,
+        smoothingFactor: Double = 0.35,
+        growthSensitivity: Double = 1.8
     ) {
         self.seed = seed
         self.maxSteps = max(maxSteps, 1)
         self.activationThreshold = activationThreshold
         self.stepEnergyThreshold = max(stepEnergyThreshold, 0.01)
         self.smoothingFactor = min(max(smoothingFactor, 0), 1)
+        self.growthSensitivity = min(max(growthSensitivity, 0.5), 4)
         smoothedEnergy = 0
         smoothedCentroid01 = 0.5
         smoothedVariation = 0.3
@@ -104,7 +107,9 @@ struct GrowthSession: Equatable {
             }
             silenceTime = 0
             let wildBoost = min(max(growthMultiplier, 0.5), 3)
-            growthAccumulator += smoothedEnergy * dt * wildBoost
+            // 生长灵敏度：普通说话音量（normalized energy 约 0.05-0.25）也要能稳定生长，
+            // 而不是整个会话只长出两三根枝条。静音仍然不生长。
+            growthAccumulator += smoothedEnergy * dt * wildBoost * growthSensitivity
         } else {
             // 静音时缓慢衰减已积累的成长势能，但不会凭空生长。
             growthAccumulator = max(growthAccumulator - dt * 0.4, 0)

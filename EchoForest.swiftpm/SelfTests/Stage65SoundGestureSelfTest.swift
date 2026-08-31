@@ -180,7 +180,7 @@ struct Stage65SoundGestureSelfTest {
         func loudFrame() -> SoundFrame {
             SoundFrame(rms: 0.9, energy: 0.9, spectralCentroidHz: 1200, onsetTriggered: false, sampleCount: 4410)
         }
-        for _ in 0..<6 {
+        for _ in 0..<3 {
             pauseSession.update(frame: loudFrame(), sessionProfile: profile, dt: 0.15)
         }
         let primariesBefore = pauseSession.plant.structure.branches.filter { $0.depth == 1 }.count
