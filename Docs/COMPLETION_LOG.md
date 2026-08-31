@@ -557,3 +557,39 @@
 
 ### Commit
 - `feat(ui): apply dusk-forest homepage redesign from design draft`
+
+---
+
+## Stage 6.5 Creative Refactor（2026-08-31，Echo / Wild 双模式 + Sound Gesture + Free For All）
+
+**Status:** DONE（确定性自测 9/9 PASS + 模拟器 Echo/Wild/持久化 runtime PASS；真实拍手 NOT RUN）
+
+### 完成
+- `GrowthMode` 从 `normal/wild` 改为正式双模式 `echo/wild`；旧存档 raw `"normal"` 解码自动迁移为 `.echo`，不 crash。
+- 新增 `SoundGestureAnalyzer`（纯逻辑）：能量趋势（持续判定，单帧抖动不横跳）、停顿/silence 手势、attack 突发、onset isolated/cluster、节奏 regular/irregular（inter-onset interval，不做 BPM）、变化度分级。
+- Echo：自由创作；Growing 页加入一次性声音手势提示（渐弱→左、渐强→右、明亮→上、变化→分叉、停顿→换枝、恢复→新一笔、敲击→开花）；Forest 入口改为「种一棵声音树 / ⚡ 暴走森林」并带副文案。
+- 停顿 = 结束这一笔：`GrowthSession` 静音 >= 1s 记为停顿，恢复后下一次生长强制开启新主枝（`justResumedFromPause` 以约 0.9s 闪光窗口暴露给 UI）。
+- Wild 重写：开场（别吵醒它）→ 3-2-1 倒计时 → 种子抽动（糟了）→ 4–6 个挑战（seed 确定性洗牌；silence/louder/softer/high/chaos/bloom/rhythm）→ Free For All（随便来点什么！！8s，全映射开放，灵敏度 ×1.35，硬上限仍由 PlantGenerator 保证）→ 结尾（嗯……确实很像你）→ Result。总时长约 36.5s（30–45 区间内）。
+- Wild 挑战语义：silence 出声只触发“它听见了。”（不失败不 Wrong）；bloom 第一朵“就这？”，第二次 onset 成花簇；rhythm 按 inter-onset regularity 开花。
+- 录音上限 30s → 45s（覆盖 Wild 完整时长）。
+- Result / Plant Detail：新增确定性声音画像（Echo：安静/柔和/有力 + 低沉/舒展/明亮 + 多变 + 有节奏；Wild：吵闹/躁动 + 多变 + 爆发力强 + 极度不安分）；Detail 播放按钮改为「听听它的声音 / 暂停」；SoundDNA 频率行改为「频率特性」，不虚构 Pitch。
+- Seed：首次创作前展示本地录音隐私说明（不上传、不联网、可关闭）。
+
+### 验证
+- `swift build --package-path EchoForest.swiftpm`：PASS（无警告）。
+- 9 个零依赖自测全部 PASS（新增 `Stage65SoundGestureSelfTest`；`Stage65WildModeSelfTest` 覆盖新时间线/7 类挑战/Free For All 硬上限/迁移）。
+- `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build`：PASS。
+- 模拟器 Echo runtime（真实麦克风 + 宿主扬声器音调输入）：real buffers（0→123）/ frame 4410 / real metrics（energy 0.253、centroid 波动、onset 5）/ real growth（steps>0）/ Result / Save / relaunch / Detail / playback PASS。
+- 模拟器 Wild runtime（真实 App 路径 + 确定性脚本帧，与 self-test 同源）：opening → countdown → jerk → silence/louder/softer/high/chaos/bloom 全部 succeeded=true → Free For All（branches 38→65、flowers 6→21）→ ending → done → 种进森林 PASS。
+- 持久化 A/B：Echo Plant A（EFED4119…m4a，12.2s）+ Wild Plant B（A10FE468…m4a，39.4s），terminate/relaunch 后分别 playbackActive=true，A→Audio A、B→Audio B 无串音 PASS。
+- 权限拒绝：revoke 麦克风后 autopilot `creation started: false`，无崩溃 PASS；随后恢复授权。
+- 像素抽样：Wild 森林截图含 2 棵植物（greenish 342k / amber 28k）；权限拒绝截图正常。
+
+### 未完成 / 风险
+- `PHYSICAL CLAP: NOT RUN`（模拟器扬声器→麦克风路径无法稳定触发真实拍手；确定性 onset/bloom/rhythm 测试 PASS）。
+- 真机（iPhone）整体体验未验证；Wild 真实麦克风下的挑战手感（非脚本帧）需真机确认。
+- Wild 挑战失败没有失败态（符合设计）；Free For All 结束后直接进入 Result，无“再来一次”快捷入口。
+- 音频中断（电话 / 媒体服务 reset）仍未实现。
+
+### Commit
+- `feat(plant): add creative refactor with sound gestures and wild free-for-all`

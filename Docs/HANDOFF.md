@@ -36,6 +36,7 @@
 - 森林保存（Stage 6）：DONE（模拟器 kill/relaunch 实测 PASS）
 - Stage 6.5 Sound Tree Redesign & Audio Memory：DONE（模拟器录音/保存/重启/详情播放 PASS）
 - Stage 6.5+ Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2：DONE（模拟器 Normal/Wild runtime PASS；真机/真实拍手 NOT RUN）
+- Stage 6.5 Creative Refactor（Echo/Wild 双模式 + SoundGestureAnalyzer + Wild Free For All）：DONE（确定性自测 9/9 + 模拟器 Echo/Wild/持久化 runtime PASS；PHYSICAL CLAP NOT RUN）
 - Design 主页 UI 设计稿与树的表达（并行交付物，`Design/`）：DONE
 - Stage 7 主页视觉落地（Forest 主页按设计稿重做）：DONE（模拟器截图验证；用户已明确恢复主页部分）
 - 视觉精修（Growing / Result / Detail）：PAUSED / NOT STARTED（Stage 7 其余部分仍等用户明确恢复）

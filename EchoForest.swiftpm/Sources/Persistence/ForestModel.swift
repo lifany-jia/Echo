@@ -17,7 +17,7 @@ struct PlantRecord: Identifiable, Equatable, Codable {
         createdAt: Date = Date(),
         audioFilename: String? = nil,
         audioDuration: TimeInterval = 0,
-        growthMode: GrowthMode = .normal
+        growthMode: GrowthMode = .echo
     ) {
         self.plant = plant
         self.soundProfile = soundProfile ?? plant.profile
@@ -27,7 +27,7 @@ struct PlantRecord: Identifiable, Equatable, Codable {
         self.growthMode = growthMode
     }
 
-    /// 旧存档兼容：`growthMode` 缺失时默认 `.normal`，`audioFilename` 缺失时默认 nil。
+    /// 旧存档兼容：`growthMode` 缺失时默认 `.echo`，`audioFilename` 缺失时默认 nil。
     private enum CodingKeys: String, CodingKey {
         case plant
         case soundProfile
@@ -45,7 +45,7 @@ struct PlantRecord: Identifiable, Equatable, Codable {
             createdAt: try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .distantPast,
             audioFilename: try container.decodeIfPresent(String.self, forKey: .audioFilename),
             audioDuration: try container.decodeIfPresent(TimeInterval.self, forKey: .audioDuration) ?? 0,
-            growthMode: try container.decodeIfPresent(GrowthMode.self, forKey: .growthMode) ?? .normal
+            growthMode: try container.decodeIfPresent(GrowthMode.self, forKey: .growthMode) ?? .echo
         )
     }
 
@@ -72,7 +72,7 @@ struct ForestModel: Equatable, Codable {
 
     init(plants: [PlantModel]) {
         records = plants.map {
-            PlantRecord(plant: $0, soundProfile: $0.profile, createdAt: .distantPast, growthMode: .normal)
+            PlantRecord(plant: $0, soundProfile: $0.profile, createdAt: .distantPast, growthMode: .echo)
         }
     }
 

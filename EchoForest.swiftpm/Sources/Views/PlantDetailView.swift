@@ -37,7 +37,7 @@ struct PlantDetailView: View {
                     .font(.title.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text("模式：\(record.growthMode.displayName)\(record.growthMode.isWild ? " ⚡" : "")")
+                Text(record.growthMode.displayName + (record.growthMode.isWild ? " ⚡" : ""))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.68))
                     .padding(.horizontal, 10)
@@ -54,10 +54,13 @@ struct PlantDetailView: View {
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.56))
 
-                SoundDNAView(profile: record.soundProfile)
+                SoundDNAView(
+                    profile: record.soundProfile,
+                    personality: SoundPresentation.personality(for: record.soundProfile, isWild: record.growthMode.isWild)
+                )
 
                 Button(action: onTogglePlayback) {
-                    Text(isPlaying ? "Pause" : "Play")
+                    Text(isPlaying ? "暂停" : "听听它的声音")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)

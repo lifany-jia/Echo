@@ -244,7 +244,7 @@ struct Stage65SoundTreeAudioSelfTest {
                 expect(false, "wild PlantRecord load should succeed")
             }
 
-            // Legacy v1 migration: plants archive → PlantRecord with growthMode .normal and no audio.
+            // Legacy v1 migration: plants archive → PlantRecord with growthMode .echo and no audio.
             let legacyRoot = root.appendingPathComponent("legacy-v1", isDirectory: true)
             let legacyStore = ForestStore(directory: legacyRoot)
             let legacyData = try JSONEncoder().encode(LegacyForestArchive(version: 1, plants: [plantA, plantB]))
@@ -252,13 +252,13 @@ struct Stage65SoundTreeAudioSelfTest {
             try legacyData.write(to: legacyStore.fileURL)
             if case .success(let migrated) = legacyStore.load() {
                 expect(migrated.records.count == 2, "v1 archive should migrate both plants")
-                expect(migrated.records.allSatisfy { $0.growthMode == .normal }, "v1 migration should default growthMode to normal")
+                expect(migrated.records.allSatisfy { $0.growthMode == .echo }, "v1 migration should default growthMode to echo")
                 expect(migrated.records.allSatisfy { $0.audioFilename == nil }, "v1 migration should have no audio filename")
             } else {
                 expect(false, "v1 legacy archive migration should succeed")
             }
 
-            // Pre-growthMode v2 archive: missing growthMode key decodes as .normal.
+            // Pre-growthMode v2 archive: missing growthMode key decodes as .echo.
             let v2Root = root.appendingPathComponent("v2-no-mode", isDirectory: true)
             let v2Store = ForestStore(directory: v2Root)
             let plantData = try JSONEncoder().encode(plantA)
@@ -276,7 +276,7 @@ struct Stage65SoundTreeAudioSelfTest {
             try FileManager.default.createDirectory(at: v2Root, withIntermediateDirectories: true)
             try JSONSerialization.data(withJSONObject: archiveJSON).write(to: v2Store.fileURL)
             if case .success(let v2Loaded) = v2Store.load() {
-                expect(v2Loaded.records.first?.growthMode == .normal, "v2 archive without growthMode should default to normal")
+                expect(v2Loaded.records.first?.growthMode == .echo, "v2 archive without growthMode should default to echo")
             } else {
                 expect(false, "v2 archive without growthMode should load safely")
             }

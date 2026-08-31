@@ -2,15 +2,23 @@ import SwiftUI
 
 struct SoundDNAView: View {
     let profile: SoundProfile
+    var personality: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let personality {
+                Text(personality)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(red: 0.95, green: 0.85, blue: 0.62))
+                    .padding(.bottom, 2)
+            }
+
             Text("Sound DNA")
-                .font(.headline)
-                .foregroundStyle(.white)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color(red: 0.93, green: 0.90, blue: 0.82).opacity(0.9))
 
             DNABarRow(label: "能量", value: profile.energy)
-            DNABandRow(label: "频率", band: SoundPresentation.frequencyBandShort(profile.spectralCentroidHz))
+            DNABandRow(label: "频率特性", band: SoundPresentation.frequencyBandShort(profile.spectralCentroidHz))
             DNAValueRow(label: "节奏", value: profile.onsetCount > 0 ? "开过 \(profile.onsetCount) 次花" : "平稳")
             DNABarRow(label: "变化", value: profile.variation)
             DNAValueRow(label: "时长", value: String(format: "%.0f 秒", profile.duration))

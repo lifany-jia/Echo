@@ -18,7 +18,8 @@ enum AudioMemoryError: Error, Equatable {
 /// 录音由 AVAudioRecorder 独立写 AAC/M4A；实时分析仍由 AudioEngineController 的 input tap 负责。
 @MainActor
 final class AudioMemoryController {
-    static let maxRecordingDuration: TimeInterval = 30
+    /// Wild 会话约 36 秒，录音上限必须覆盖完整体验（规格建议 <=45s）。
+    static let maxRecordingDuration: TimeInterval = 45
 
     private var recorder: AVAudioRecorder?
     private var player: AVAudioPlayer?

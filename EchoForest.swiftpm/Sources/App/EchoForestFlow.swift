@@ -3,7 +3,7 @@ struct EchoForestFlow: Equatable {
     private(set) var forest: ForestModel = ForestModel()
     private(set) var currentPlant: PlantModel?
     private(set) var selectedRecord: PlantRecord?
-    private(set) var currentMode: GrowthMode = .normal
+    private(set) var currentMode: GrowthMode = .echo
 
     init(forest: ForestModel = ForestModel()) {
         self.forest = forest
@@ -17,7 +17,7 @@ struct EchoForestFlow: Equatable {
         forest.records
     }
 
-    mutating func moveToSeed(mode: GrowthMode = .normal) {
+    mutating func moveToSeed(mode: GrowthMode = .echo) {
         currentPlant = nil
         selectedRecord = nil
         currentMode = mode
@@ -27,7 +27,7 @@ struct EchoForestFlow: Equatable {
     mutating func cancelSeed() {
         currentPlant = nil
         selectedRecord = nil
-        currentMode = .normal
+        currentMode = .echo
         stage = .forest
     }
 
@@ -50,7 +50,7 @@ struct EchoForestFlow: Equatable {
 
     mutating func cancelGrowing() {
         currentPlant = nil
-        currentMode = .normal
+        currentMode = .echo
         stage = .seed
     }
 
@@ -71,7 +71,7 @@ struct EchoForestFlow: Equatable {
         }
         currentPlant = nil
         selectedRecord = nil
-        currentMode = .normal
+        currentMode = .echo
         stage = .forest
     }
 
@@ -92,7 +92,7 @@ struct EchoForestFlow: Equatable {
         self.forest = forest
         currentPlant = nil
         selectedRecord = nil
-        currentMode = .normal
+        currentMode = .echo
         stage = .forest
     }
 }

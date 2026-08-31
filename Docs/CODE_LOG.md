@@ -562,3 +562,35 @@ Commit: `03c672b feat(plant): add wild mode and sound memory`
 ### Known risks
 - 模拟器截图为像素级验证，未做人工目检（当前环境不支持图像输入）；建议真机人工过一遍。
 - Frame D 暴走主页变体未实现（概念稿）。
+
+---
+
+## Stage 6.5 Creative Refactor（2026-08-31）
+
+### Files
+- 新增 `Sources/Audio/SoundGestureAnalyzer.swift`：统一声音手势层（纯逻辑）。
+- 新增 `SelfTests/Stage65SoundGestureSelfTest.swift`。
+- 重写 `Sources/Plant/WildSession.swift`、`SelfTests/Stage65WildModeSelfTest.swift`。
+- 修改 `GrowthMode`（echo/wild + 迁移）、`GrowthSession`（停顿换枝）、`PlantGenerator`（forceNewPrimary）、`LiveGrowthController`（分析器接线）、`EchoForestFlow` / `EchoForestRootView`（双模式接线 + Wild autopilot 脚本）、`AudioMemoryController`（45s cap）、Views（Growing/Seed/Result/SoundDNA/Detail/Forest）、`SoundPresentation`（画像）、`ForestModel`（默认 .echo）。
+
+### Architecture
+数据流（双模式共享，不复制 DSP）：
+`AVAudioEngine → AudioAnalyzer → SoundFrame → SoundProfile → SoundGestureAnalyzer → GrowthSession → PlantModel → PlantRenderer`
+
+- `SoundGestureAnalyzer`：输入 `energy / energySlope / centroid01 / variation / onset` 与 dt，输出 `SoundGestures`（trend/silence/attack/onsetKind/rhythm/variationLevel）。趋势带 4 tick 持续判定；rhythm 用 onset 时间戳的 IOI 均值与变异系数（cv<=0.35 且 mean 0.15–1.5s → regular），不做 BPM。
+- `GrowthSession`：停顿（silence>=1s）冻结当前笔，恢复时 `forceNewPrimary` 开启新主枝；`justResumedFromPause` 闪光 6 tick。
+- `WildSession`：`challengeSequence(seed:count:)` 确定性洗牌 4–6 个挑战；`init(challenges:)` 供测试/autopilot 固定序列；`totalDuration` 按实例挑战数计算；Free For All 乘数只放大表现，硬上限在 PlantGenerator。
+- 录音：Echo/Wild 都走 `AudioMemoryController`（AAC/M4A，45s cap），`Application Support/EchoForest/Audio/<plantUUID>.m4a`，forest.json 只存文件名。
+
+### Behavior change
+- 模式命名 Echo/Wild；旧 `"normal"` 存档自动迁移。
+- Echo 提示为一次性引导（成功后消失）；Wild 为紧凑表演（约 36.5s，挑战失败只做有趣反馈）。
+- Result/Detail 显示确定性声音画像（personality），技术指标降级为次要行。
+
+### Tests
+- 9/9 零依赖自测 PASS；`swift build` PASS；simulator `xcodebuild` PASS。
+- 模拟器 runtime：Echo 真实闭环、Wild 全挑战 + Free For All、A/B 双录音分别回放、权限拒绝无崩溃，全部 PASS；`PHYSICAL CLAP: NOT RUN`。
+
+### Known risks
+- Wild 真实麦克风手感未验证（脚本帧驱动 runtime）；真机未验证。
+- 音频中断处理未实现。

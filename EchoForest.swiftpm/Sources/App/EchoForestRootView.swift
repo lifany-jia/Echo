@@ -75,6 +75,8 @@ struct EchoForestRootView: View {
                     duration: audio.profile.duration,
                     mode: flow.currentMode,
                     wild: flow.currentMode.isWild ? wild : nil,
+                    gestures: growth.gestures,
+                    justResumedFromPause: growth.justResumedFromPause,
                     onFinish: {
                         finishCreation()
                     },
@@ -132,15 +134,6 @@ struct EchoForestRootView: View {
                 try? await Task.sleep(for: .milliseconds(150))
                 guard !autopilotDrivesGrowth else { continue }
                 let mode = flow.currentMode
-                if mode.isWild {
-                    let snapshot = WildSoundSnapshot(
-                        energySlope: growth.recentEnergySlope,
-                        centroid01: growth.smoothedCentroid01,
-                        variation: growth.smoothedVariation,
-                        onsetTriggered: audio.latestFrame.onsetTriggered
-                    )
-                    wild.update(elapsed: wild.elapsed + 0.15, snapshot: snapshot)
-                }
                 growth.update(
                     frame: audio.latestFrame,
                     sessionProfile: audio.profile,
@@ -149,6 +142,19 @@ struct EchoForestRootView: View {
                     lengthMultiplier: mode.isWild ? wild.lengthMultiplier : 1,
                     flowerSizeMultiplier: mode.isWild ? wild.flowerSizeMultiplier : 1
                 )
+                if mode.isWild {
+                    let snapshot = WildSoundSnapshot(
+                        energySlope: growth.recentEnergySlope,
+                        centroid01: growth.smoothedCentroid01,
+                        variation: growth.smoothedVariation,
+                        onsetTriggered: audio.latestFrame.onsetTriggered,
+                        energy: audio.latestFrame.energy,
+                        silenceDuration: growth.gestures.silenceDuration,
+                        rhythm: growth.gestures.rhythm,
+                        onsetKind: growth.gestures.onsetKind
+                    )
+                    wild.update(elapsed: wild.elapsed + 0.15, snapshot: snapshot)
+                }
                 if audio.profile.duration >= AudioMemoryController.maxRecordingDuration {
                     finishCreation()
                     return
@@ -343,7 +349,7 @@ struct EchoForestRootView: View {
                 flow.moveToSeed()
                 NSLog("[AUTOPILOT] session \(sessionIndex): moved to Seed")
                 try? await Task.sleep(for: .seconds(1))
-                let started = await beginCreationAsync(mode: .normal)
+                let started = await beginCreationAsync(mode: .echo)
                 NSLog("[AUTOPILOT] session \(sessionIndex): creation started: \(started)")
 
                 let sessionSeconds = sessionIndex == 1 ? 12 : 8
@@ -391,8 +397,8 @@ struct EchoForestRootView: View {
 
     /// Wild Runtime Gate：ECHO_FOREST_AUTOPILOT_WILD=1 时激活。
     /// 走真实 App 路径（Seed → 权限 → engine → Growing → WildSession → Result → 种进森林），
-    /// 但用固定脚本帧序列驱动 GrowthSession（与确定性 self-test 同源），
-    /// 以便在模拟器中验证 Wild 挑战识别 / 暴走 / 持久化 / 详情播放。
+    /// 但用固定脚本帧序列驱动 GrowthSession + SoundGestureAnalyzer（与确定性 self-test 同源），
+    /// 以便在模拟器中验证 Wild 挑战识别 / Free For All / 持久化 / 详情播放。
     private func runWildAutopilot() {
         Task {
             NSLog("[WILDAUTO] enabled")
@@ -407,21 +413,36 @@ struct EchoForestRootView: View {
                 return
             }
 
+            // 固定挑战序列，与 wildScriptedFrame 对齐（silence → louder → softer → high → chaos → bloom）。
+            wild = WildSession(challenges: [.silence, .louder, .softer, .high, .chaos, .bloom])
             autopilotDrivesGrowth = true
             let dt = 0.15
             var elapsed = 0.0
-            let total = WildSession.totalDuration + 1
+            var gestureAnalyzer = SoundGestureAnalyzer()
+            let total = wild.totalDuration + 1
             var lastLogSecond = -1
 
             while elapsed <= total {
                 let frame = Self.wildScriptedFrame(at: elapsed)
                 var sessionProfile = audio.profile
                 sessionProfile.accumulate(frame: frame, frameDuration: dt)
+                let gestures = gestureAnalyzer.update(
+                    energy: frame.energy,
+                    energySlope: growth.recentEnergySlope,
+                    centroid01: growth.smoothedCentroid01,
+                    variation: growth.smoothedVariation,
+                    onsetTriggered: frame.onsetTriggered,
+                    dt: dt
+                )
                 let snapshot = WildSoundSnapshot(
                     energySlope: growth.recentEnergySlope,
                     centroid01: growth.smoothedCentroid01,
                     variation: growth.smoothedVariation,
-                    onsetTriggered: frame.onsetTriggered
+                    onsetTriggered: frame.onsetTriggered,
+                    energy: frame.energy,
+                    silenceDuration: gestures.silenceDuration,
+                    rhythm: gestures.rhythm,
+                    onsetKind: gestures.onsetKind
                 )
                 wild.update(elapsed: elapsed, snapshot: snapshot)
                 growth.update(
@@ -444,9 +465,11 @@ struct EchoForestRootView: View {
                     NSLog(
                         "[WILDAUTO] t=\(String(format: "%.1f", elapsed)) " +
                         "phase=\(wild.phase) challenge=\(challenge) succeeded=\(succeeded) " +
-                        "burst=\(wild.isBursting) slope=\(String(format: "%.3f", growth.recentEnergySlope)) " +
+                        "freeForAll=\(wild.isFreeForAll) slope=\(String(format: "%.3f", growth.recentEnergySlope)) " +
                         "centroid01=\(String(format: "%.2f", growth.smoothedCentroid01)) " +
                         "variation=\(String(format: "%.2f", growth.smoothedVariation)) " +
+                        "silence=\(String(format: "%.2f", gestures.silenceDuration)) " +
+                        "rhythm=\(gestures.rhythm.rawValue) " +
                         "steps=\(growth.growthState?.currentStep ?? 0) " +
                         "branches=\(growth.plant?.structure.branches.count ?? 0) " +
                         "flowers=\(growth.plant?.structure.metadata.flowerCount ?? 0)"
@@ -476,52 +499,78 @@ struct EchoForestRootView: View {
     }
 
     /// 确定性 Wild 脚本帧：与挑战时间线对齐（见 WildSession 常量）。
+    /// 固定挑战顺序（与 autopilot 使用的显式 WildSession 序列一致）：
+    /// silence → louder → softer → high → chaos → bloom → Free For All → ending。
     private static func wildScriptedFrame(at elapsed: TimeInterval) -> SoundFrame {
-        let countdownEnd = WildSession.openingDuration + WildSession.countdownDuration
-        let ch1End = countdownEnd + WildSession.challengeDuration
+        let openingEnd = WildSession.openingDuration
+        let countdownEnd = openingEnd + WildSession.countdownDuration
+        let jerkEnd = countdownEnd + WildSession.jerkDuration
+        let challengeStart = jerkEnd
+        let ch1End = challengeStart + WildSession.challengeDuration
         let ch2End = ch1End + WildSession.challengeDuration
         let ch3End = ch2End + WildSession.challengeDuration
-        let burstEnd = ch3End + WildSession.burstDuration
-        let ch4End = burstEnd + WildSession.challengeDuration
+        let ch4End = ch3End + WildSession.challengeDuration
         let ch5End = ch4End + WildSession.challengeDuration
+        let ch6End = ch5End + WildSession.challengeDuration
+        let freeAllEnd = ch6End + WildSession.freeForAllDuration
 
         var energy: Double
         let centroid: Double
         var onset = false
         switch elapsed {
-        case ..<WildSession.openingDuration:
-            energy = 0.08
+        case ..<openingEnd:
+            energy = 0.05                         // 先别吵醒它：保持安静
             centroid = 800
         case ..<countdownEnd:
-            energy = 0.34
+            energy = 0.08
             centroid = 1000
+        case ..<jerkEnd:
+            energy = 0.55                         // 种子突然抽动
+            centroid = 1600
         case ..<ch1End:
-            let progress = (elapsed - countdownEnd) / WildSession.challengeDuration
-            energy = 0.62 - progress * 0.44      // 下降 → slope 负
+            // silence 挑战：先 1.6s 完全安静（达成），再出一点声（它听见了）。
+            if elapsed < ch1End - WildSession.challengeDuration + 1.6 {
+                energy = 0.01
+            } else {
+                energy = 0.35
+            }
             centroid = 650
         case ..<ch2End:
             let progress = (elapsed - ch1End) / WildSession.challengeDuration
-            energy = 0.18 + progress * 0.44      // 上升 → slope 正
+            energy = 0.12 + progress * 0.62      // louder：上升 → slope 正
             centroid = 650
         case ..<ch3End:
-            energy = 0.50
-            centroid = 3200                       // 高 centroid → growUp
-        case ..<burstEnd:
-            energy = 0.85                         // 暴走：高能量，速度快
-            centroid = 1500
+            let progress = (elapsed - ch2End) / WildSession.challengeDuration
+            energy = 0.78 - progress * 0.66      // softer：下降 → slope 负
+            centroid = 650
         case ..<ch4End:
-            let cycle = Int((elapsed - burstEnd) / 0.3) % 2
-            energy = cycle == 0 ? 0.15 : 0.85    // 强弱快速交替 → 高 recent variation
-            centroid = 1200
+            energy = 0.50
+            centroid = 3200                       // high：高 centroid → 向上
         case ..<ch5End:
-            energy = 0.30
-            centroid = 1300
-            if elapsed >= ch4End + 0.9 && elapsed < ch4End + 1.05 {
-                onset = true                      // 一次“拍手”
+            let cycle = Int((elapsed - ch3End) / 0.3) % 2
+            energy = cycle == 0 ? 0.10 : 0.90    // chaos：强弱快速交替 → 高 variation
+            centroid = 1200
+        case ..<ch6End:
+            energy = 0.40
+            centroid = 1400
+            if elapsed >= ch5End + 0.7 && elapsed < ch5End + 0.9 {
+                onset = true                      // bloom 第一朵（就这？）
                 energy = 0.95
             }
+            if elapsed >= ch5End + 1.3 && elapsed < ch5End + 1.5
+                || elapsed >= ch5End + 1.7 && elapsed < ch5End + 1.9 {
+                onset = true                      // 连续拍手 → 花簇
+                energy = 0.95
+            }
+        case ..<freeAllEnd:
+            let local = elapsed - ch6End
+            let cycle = Int(local / 0.35) % 2
+            energy = 0.35 + min(local / WildSession.freeForAllDuration, 1) * 0.45
+                + (cycle == 0 ? 0 : 0.15)
+            centroid = 1000 + min(local * 260, 1500)
+            onset = Int(local / 1.2) > Int((local - 0.15) / 1.2)
         default:
-            energy = 0.05                         // 冷静
+            energy = 0.03                         // ending：安静，让它完整出现
             centroid = 900
         }
 

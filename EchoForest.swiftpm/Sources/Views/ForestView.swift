@@ -421,40 +421,49 @@ private struct ForestDock: View {
     var body: some View {
         VStack(spacing: 11) {
             Button(action: onStart) {
-                Text("种下一段声音")
-                    .font(.system(size: 16.5, weight: .bold, design: .rounded))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(
-                        LinearGradient(
-                            colors: [ForestPalette.fire, ForestPalette.amber],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: Capsule()
-                    )
-                    .foregroundStyle(ForestPalette.ctaText)
-                    .shadow(color: ForestPalette.amber.opacity(0.28), radius: 18, y: 8)
+                VStack(spacing: 4) {
+                    Text("种一棵声音树")
+                        .font(.system(size: 16.5, weight: .bold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            LinearGradient(
+                                colors: [ForestPalette.fire, ForestPalette.amber],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            in: Capsule()
+                        )
+                        .foregroundStyle(ForestPalette.ctaText)
+                        .shadow(color: ForestPalette.amber.opacity(0.28), radius: 18, y: 8)
+
+                    Text("让声音慢慢长成自己的形状")
+                        .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                        .foregroundStyle(ForestPalette.moon.opacity(0.50))
+                }
             }
             .buttonStyle(.plain)
-            .accessibilityHint("开始一段新的声音创作")
+            .accessibilityHint("Echo 模式：用声音慢慢种下一棵树")
 
             Button(action: onStartWild) {
-                Text("⚡ 让它暴走")
-                    .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(ForestPalette.moon.opacity(0.05), in: Capsule())
-                    .overlay {
-                        Capsule().stroke(ForestPalette.moon.opacity(0.22), lineWidth: 1)
-                    }
-                    .foregroundStyle(ForestPalette.moon)
+                VStack(spacing: 4) {
+                    Text("⚡ 暴走森林")
+                        .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(ForestPalette.moon.opacity(0.05), in: Capsule())
+                        .overlay {
+                            Capsule().stroke(ForestPalette.amber.opacity(0.45), lineWidth: 1)
+                        }
+                        .foregroundStyle(ForestPalette.moon)
+
+                    Text("这次，看看谁控制谁")
+                        .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                        .foregroundStyle(ForestPalette.amber.opacity(0.62))
+                }
             }
             .buttonStyle(.plain)
-
-            Text("拍手会开花 · 高音会长高")
-                .font(.system(size: 10.5, weight: .regular, design: .rounded))
-                .foregroundStyle(ForestPalette.moon.opacity(0.42))
+            .accessibilityHint("Wild 模式：用声音驯服一棵失控的树")
         }
     }
 }

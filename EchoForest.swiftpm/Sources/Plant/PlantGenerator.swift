@@ -176,7 +176,8 @@ enum PlantGenerator {
         to structure: inout PlantStructure,
         params: LiveGrowthParams,
         seed: UInt64,
-        stepIndex: Int
+        stepIndex: Int,
+        forceNewPrimary: Bool = false
     ) {
         guard structure.branches.count < maxBranchCount else { return }
 
@@ -196,7 +197,8 @@ enum PlantGenerator {
         let parent: BranchModel
         let parentIndex: Int?
         let start: CGPoint
-        if primaryIndices.count < targetPrimaryCount && (primaryIndices.isEmpty || stepIndex.isMultiple(of: 3)) {
+        if (forceNewPrimary || primaryIndices.count < targetPrimaryCount)
+            && (primaryIndices.isEmpty || forceNewPrimary || stepIndex.isMultiple(of: 3)) {
             tier = 1
             parent = structure.trunk
             parentIndex = nil
