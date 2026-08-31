@@ -4,7 +4,7 @@
 
 ## 1. 当前架构状态
 
-**代码状态：Stage 3 DONE（Audio Metrics；真实麦克风 → analyzer 集成 NOT RUN）**
+**代码状态：Stage 4 DONE（Growth Engine；真实麦克风耦合 NOT STARTED）**
 
 当前结构：
 
@@ -18,16 +18,22 @@
 - `EchoForest.swiftpm/Sources/Audio/SpectralCentroid.swift`：Accelerate vDSP_DFT 频域重心（Frequency Proxy）。
 - `EchoForest.swiftpm/Sources/Audio/OnsetDetector.swift`：能量域 transient 检测（threshold + jump + cooldown）。
 - `EchoForest.swiftpm/Sources/Audio/AudioAnalyzer.swift`：分析层，AVAudioPCMBuffer → SoundFrame + SoundProfile。
+- `EchoForest.swiftpm/Sources/Plant/BranchModel.swift`：枝条 / 事件节点 / PlantStructure / 元数据 / boundingBox / visibleCounts。
+- `EchoForest.swiftpm/Sources/Plant/PlantModel.swift`：会话身份 + SoundProfile + PlantStructure。
+- `EchoForest.swiftpm/Sources/Plant/GrowthState.swift`：生长步骤（模拟 progression）。
+- `EchoForest.swiftpm/Sources/Plant/SeededRandom.swift`：SplitMix64 确定性 RNG。
+- `EchoForest.swiftpm/Sources/Plant/PlantGenerator.swift`：SoundProfile + seed → PlantStructure 的五维确定性映射。
+- `EchoForest.swiftpm/Sources/Rendering/PlantRenderer.swift`：PlantStructure → Canvas；不重算声音映射。
 - `EchoForest.swiftpm/Sources/App/EchoForestRootView.swift`：持有 flow + audio；Seed “开始创作”异步执行权限 → startListening → 成功才进入 Growing；拒绝/失败弹 alert。
 - `EchoForest.swiftpm/Sources/Views/SeedView.swift`：种子页；按钮“开始创作”，提示首次请求权限。
 - `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：Listening 徽标 + buffer 链路计数 + Live Metrics 面板（Energy / Spectral Centroid / Onset count / Duration）+ 取消按钮；植物视觉仍为 mock。
-- `EchoForest.swiftpm/Sources/Models/MockSoundProfile.swift` / `MockPlantModel.swift`：mock 数据（Stage 1 保留）。
-- `EchoForest.swiftpm/Sources/Rendering/MockPlantCanvas.swift`：Canvas 程序化 mock 植物（Stage 1 保留）。
-- `EchoForest.swiftpm/Sources/Views/ForestView.swift` / `ResultView.swift`：森林 / 结果页（Stage 1 保留，Result 继续展示 Mock Sound DNA）。
-- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift` / `Stage3MetricsSelfTest.swift`：零依赖自测。
+- `EchoForest.swiftpm/Sources/Views/ForestView.swift`：森林页，展示已种 PlantModel 缩略图。
+- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：PlantRenderer + GrowthState 逐步显现 + Live Metrics。
+- `EchoForest.swiftpm/Sources/Views/ResultView.swift`：PlantRenderer + 确定性模拟 SoundProfile DNA（明确标注 mock）。
+- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift` / `Stage3MetricsSelfTest.swift` / `Stage4PlantSelfTest.swift`：零依赖自测。
 - `EchoForest.swiftpm/Info.plist`：NSMicrophoneUsageDescription（尽力配置；官方路径为 Xcode capability）。
 
-Stage 4+ 模块（Plant / Persistence）尚未创建；PitchDetector 未实现（以 Spectral Centroid 代理）。
+Stage 5+ 实时耦合 / 持久化尚未实现；PitchDetector 未实现（以 Spectral Centroid 代理）。旧的 MockPlantModel / MockSoundProfile / MockPlantCanvas 已删除。
 
 ---
 
@@ -280,3 +286,45 @@ Commit: `feat(audio): add real-time sound metrics`
 ### Known risks
 - 真实音频集成未实测；Spectral Centroid 不是真实 pitch。
 - 音频会话中断处理未实现。
+
+## 2026-08-31 — pending
+
+Commit: `feat(plant): add deterministic growth engine`
+
+### Files
+- `Sources/Plant/SeededRandom.swift`：新增；SplitMix64 确定性 RNG。
+- `Sources/Plant/BranchModel.swift`：新增；BranchModel / PlantEvent / PlantStructure / GenerationMetadata / visibleCounts。
+- `Sources/Plant/PlantModel.swift`：新增；PlantModel（id / name / profile / structure）。
+- `Sources/Plant/GrowthState.swift`：新增；生长步骤状态。
+- `Sources/Plant/PlantGenerator.swift`：新增；五维确定性映射 + 输入规范化 + 硬上限。
+- `Sources/Rendering/PlantRenderer.swift`：新增；PlantStructure → Canvas。
+- `Sources/Models/MockPlantModel.swift` / `MockSoundProfile.swift`：删除；由 PlantModel / SoundProfile 替代。
+- `Sources/Rendering/MockPlantCanvas.swift`：删除；由 PlantRenderer 替代。
+- `Sources/Audio/SoundMetrics.swift`：新增显式构造 init；更新过期注释。
+- `Sources/App/EchoForestFlow.swift`：plantedPlants / currentPlant 改用 PlantModel，由 PlantGenerator 生成模拟植物。
+- `Sources/Views/ForestView.swift` / `GrowingView.swift` / `ResultView.swift`：改用 PlantRenderer + PlantModel。
+- `Sources/App/EchoForestRootView.swift`：fallback 使用 PlantGenerator。
+- `SelfTests/Stage4PlantSelfTest.swift`：新增；确定性生成器自测。
+- `SelfTests/Stage1FlowSelfTest.swift`：断言改为“模拟植物 1”。
+
+### Behavior change
+- Growing / Result / Forest 展示由 PlantModel 程序化生成的植物；Growing 通过 GrowthState 模拟逐步生长。
+- Result Sound DNA 展示确定性模拟 SoundProfile（Energy / Spectral Centroid / Onset / Duration / Variation），明确标注 mock。
+
+### Design notes
+- 模型为纯数据（CGPoint + 数值），不持有 SwiftUI View / Path；Renderer 只做 PlantStructure → Visual。
+- 映射集中且可解释：Energy→粗细，Centroid→方向/高度/张角，Variation→弯曲/分叉，Onset→叶/花事件，Duration→尺度/深度/预算。
+- 随机性只用 SplitMix64（seed 可控），只影响装饰细节；计数与主要结构由 profile 决定。
+- 防御性输入：clamp / fallback / 硬上限；`Double(Int.max)` 先 clamp 再转 Int，避免溢出崩溃；递归深度有界，无无限递归。
+- 坐标使用单位空间（约 0...1），Renderer 按 boundingBox 自适应画布；Growing 的可见分支/事件由 `visibleCounts(upTo:)` 派生。
+- 音频层（AudioEngineController / AudioAnalyzer）不引用 PlantGenerator，实时耦合未实现（Stage 5 边界）。
+
+### Tests
+- `swift build --package-path EchoForest.swiftpm` PASS。
+- Stage 4 plant generator self-test PASS（确定性 / 单变量 / 极端输入 / 上限 / 有限几何 / GrowthState）。
+- Stage 1 / Stage 2 / Stage 3 regression PASS。
+- Xcode / microphone runtime：NOT RUN。
+
+### Known risks
+- 真实音频尚未驱动植物（Stage 5）；当前植物由模拟 SoundProfile 驱动。
+- 生成的几何在单位空间外延可达约 ±3 单位，Renderer 依赖 boundingBox 自适应；需真机目检。

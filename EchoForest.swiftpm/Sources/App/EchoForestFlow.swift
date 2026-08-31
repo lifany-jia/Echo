@@ -1,7 +1,7 @@
 struct EchoForestFlow: Equatable {
     private(set) var stage: AppStage = .forest
-    private(set) var plantedPlants: [MockPlantModel] = []
-    private(set) var currentPlant: MockPlantModel?
+    private(set) var plantedPlants: [PlantModel] = []
+    private(set) var currentPlant: PlantModel?
 
     mutating func moveToSeed() {
         currentPlant = nil
@@ -15,7 +15,7 @@ struct EchoForestFlow: Equatable {
 
     mutating func startGrowing() {
         guard stage != .growing else { return }
-        currentPlant = MockPlantModel.makeDemo(index: plantedPlants.count + 1)
+        currentPlant = PlantGenerator.makeSimulatedPlant(index: plantedPlants.count + 1)
         stage = .growing
     }
 
@@ -25,12 +25,12 @@ struct EchoForestFlow: Equatable {
     }
 
     mutating func finishMockGrowing() {
-        currentPlant = currentPlant ?? MockPlantModel.makeDemo(index: plantedPlants.count + 1)
+        currentPlant = currentPlant ?? PlantGenerator.makeSimulatedPlant(index: plantedPlants.count + 1)
         stage = .result
     }
 
     mutating func plantCurrentInForest() {
-        plantedPlants.append(currentPlant ?? MockPlantModel.makeDemo(index: plantedPlants.count + 1))
+        plantedPlants.append(currentPlant ?? PlantGenerator.makeSimulatedPlant(index: plantedPlants.count + 1))
         currentPlant = nil
         stage = .forest
     }

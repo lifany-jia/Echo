@@ -20,7 +20,7 @@
 | 1 | Static Experience | DONE | `swift build` PASS + flow self-test PASS |
 | 2 | Audio Input | DONE（代码层） | build PASS + 状态自测 PASS；真机麦克风 NOT RUN |
 | 3 | Audio Metrics | DONE（代码层） | build PASS + 确定性 DSP 自测 PASS；真机音频集成 NOT RUN |
-| 4 | Growth Engine | NOT STARTED | NOT RUN |
+| 4 | Growth Engine | DONE（代码层） | build PASS + generator 自测 PASS；实时耦合 NOT STARTED |
 | 5 | Real-time Coupling | NOT STARTED | NOT RUN |
 | 6 | Forest Persistence | NOT STARTED | NOT RUN |
 | 7 | Presentation Polish | NOT STARTED | NOT RUN |
@@ -212,3 +212,48 @@
 
 ### Commit
 - `ae524df feat(audio): add real-time sound metrics`
+
+## 2026-08-31 12:03 — Stage 4 Growth Engine
+
+**Status:** DONE（代码层）；Real-time microphone coupling: NOT STARTED
+
+### 完成
+- 建立 Plant 模块（纯数据，无 SwiftUI View / Path）：
+  - `BranchModel`（起点 / 终点 / 二次曲线控制点 / 粗细 / 深度 / 父引用 / 弯曲度）
+  - `PlantEvent`（leaf / flower 事件节点，含位置 / 尺寸 / 出现深度）
+  - `PlantStructure`（主干 + 分枝 + 事件 + 元数据 + boundingBox + visibleCounts）
+  - `PlantModel`（id / name / profile / structure）
+  - `GrowthState`（当前步骤 / 总步骤 / advance / reset，模拟 progression）
+  - `PlantGenerator`（SoundProfile + seed → PlantStructure）
+- 五维映射（一句话可解释）：
+  - Energy → 枝干粗细 / 生命力（trunk = (5 + 15·energy) × scale × slim）
+  - Spectral Centroid → 生长方向 / 高度 / 分支张角（高 centroid → 更高、更向上、更纤长；低 → 更横向舒展）
+  - Variation → 弯曲程度 / 分叉倾向（子分支数 1–3 阈值 + 弯曲系数）
+  - Onset → 叶片 / 花事件（0 onset 无花；onset 越多事件越多，有上限）
+  - Duration → 总体尺度 / 生长深度 / 节点预算
+- 确定性：SplitMix64 seeded RNG 只作用于角度 / 位置 / 曲线等装饰细节；相同 profile + seed 结构完全一致。
+- 输入规范化：clamp / normalize / fallback；NaN / infinity 不传播；硬上限（分支 ≤ 40、深度 ≤ 6、叶 ≤ 28、花 ≤ 8、onset ≤ 24）；无无限递归（深度有界）。
+- 新渲染层 `PlantRenderer`：PlantStructure → SwiftUI Canvas（quad 曲线枝条 + 椭圆叶片 + 程序化花瓣），不重算声音映射；Growing / Result / Forest 共用。
+- Growing 页由模拟 SoundProfile 驱动并逐步显现（GrowthState 模拟 progression，不接音频 callback）；Result 展示真实 PlantModel + 确定性模拟 SoundProfile DNA，明确标注“由模拟 SoundProfile 生成 · 未接麦克风”。
+- 删除旧的 MockPlantModel / MockSoundProfile / MockPlantCanvas。
+
+### 验证
+- Command: `swift build --package-path EchoForest.swiftpm`
+- Result: PASS（无警告）
+- Command: `swiftc <SoundMetrics + Plant 模块源文件> SelfTests/Stage4PlantSelfTest.swift && 执行`
+- Result: PASS（Stage 4 plant generator self-test PASS）
+- Notes: 覆盖 Profile A/B/C 综合形态、same profile + same seed 完全一致、不同 seed 只变细节、Energy / Centroid / Variation / Onset / Duration 单变量、极端输入 clamp、NaN 不传播、数量硬上限、几何有限且在合理范围、GrowthState、visibleCounts 单调。
+- Command: Stage 1 / Stage 2 / Stage 3 regression
+- Result: 全部 PASS（Stage 1 flow / Stage 2 audio state / Stage 3 metrics）
+- Command: 真实 App Playground / microphone runtime
+- Result: NOT RUN（Command Line Tools 环境）
+
+### 未完成 / 风险
+- 真实麦克风 → 植物耦合属于 Stage 5，NOT STARTED；本阶段植物完全由模拟 SoundProfile 驱动。
+- Growing 的“生长”是模拟 progression（定时逐步显现），不是动画 polish，也不是音频驱动。
+- Result Sound DNA 展示的是确定性模拟 profile，不是真实会话 summary。
+- Xcode / 真机图形运行仍未验证（NOT RUN）。
+
+### Commit
+- `pending feat(plant): add deterministic growth engine`
+- `pending docs(handoff): record stage 4 commit`

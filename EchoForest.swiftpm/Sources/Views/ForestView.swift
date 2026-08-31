@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ForestView: View {
-    let plantedPlants: [MockPlantModel]
+    let plantedPlants: [PlantModel]
     let onStart: () -> Void
 
     var body: some View {
@@ -80,7 +80,7 @@ private struct EmptyForestPlot: View {
 }
 
 private struct PlantedForestGrid: View {
-    let plants: [MockPlantModel]
+    let plants: [PlantModel]
 
     var body: some View {
         VStack(spacing: 12) {
@@ -91,7 +91,7 @@ private struct PlantedForestGrid: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 12)], spacing: 12) {
                 ForEach(plants) { plant in
                     VStack(spacing: 6) {
-                        MockPlantCanvas(plant: plant, progress: 1, showsBloom: true)
+                        PlantRenderer(structure: plant.structure)
                             .frame(height: 110)
 
                         Text(plant.name)

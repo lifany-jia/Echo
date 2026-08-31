@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct GrowingView: View {
-    let plant: MockPlantModel
+    let plant: PlantModel
     let isListening: Bool
     let receivedBufferCount: Int
     let lastFrameLength: Int?
@@ -12,27 +12,32 @@ struct GrowingView: View {
     let onFinish: () -> Void
     let onCancel: () -> Void
 
+    @State private var growth: GrowthState?
+
     var body: some View {
         ZStack {
             Color(red: 0.06, green: 0.11, blue: 0.10)
                 .ignoresSafeArea()
 
-            VStack(spacing: 18) {
-                VStack(spacing: 8) {
+            VStack(spacing: 12) {
+                VStack(spacing: 6) {
                     Text("生长中")
                         .font(.largeTitle.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    Text("Plant growth is still mock · 植物生长仍为 mock（Stage 3）")
+                    Text("Plant driven by simulated SoundProfile · 由模拟 SoundProfile 驱动（未接麦克风）")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.66))
+                        .multilineTextAlignment(.center)
                 }
 
                 ListeningBadge(isListening: isListening)
 
-                MockPlantCanvas(plant: plant, progress: 0.72, showsBloom: false)
-                    .frame(maxHeight: 300)
-                    .padding(.vertical, 6)
+                PlantRenderer(structure: plant.structure, visibleSteps: growth?.currentStep ?? 0)
+                    .frame(maxHeight: 250)
+                    .padding(.vertical, 2)
+
+                growthProgressLine
 
                 LiveMetricsPanel(
                     energy: energy,
@@ -49,7 +54,7 @@ struct GrowingView: View {
                     Text("结束并查看结果")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.78, green: 0.59, blue: 0.34))
@@ -58,7 +63,25 @@ struct GrowingView: View {
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
             }
-            .padding(28)
+            .padding(24)
+        }
+        .task(id: plant.id) {
+            let totalSteps = plant.structure.metadata.maxDepth + 1
+            growth = GrowthState(totalSteps: totalSteps)
+            while let current = growth, !current.isComplete {
+                try? await Task.sleep(for: .milliseconds(320))
+                growth?.advance()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var growthProgressLine: some View {
+        if let growth {
+            let counts = plant.structure.visibleCounts(upTo: growth.currentStep)
+            Text("步骤 \(growth.currentStep)/\(growth.totalSteps) · 分支 \(counts.branches) · 叶 \(counts.leaves) · 花 \(counts.flowers)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.white.opacity(0.55))
         }
     }
 }
@@ -89,7 +112,7 @@ private struct LiveMetricsPanel: View {
     let duration: TimeInterval
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Live Metrics (Stage 3)")
                 .font(.headline)
                 .foregroundStyle(.white)
@@ -102,7 +125,7 @@ private struct LiveMetricsPanel: View {
             MetricTextRow(label: "Onset count", value: "\(onsetCount)")
             MetricTextRow(label: "Duration", value: String(format: "%.1f s", duration))
         }
-        .padding(16)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
         .overlay {
@@ -117,7 +140,7 @@ private struct MetricBarRow: View {
     let value: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(label)
                     .font(.caption.weight(.medium))
@@ -138,7 +161,7 @@ private struct MetricBarRow: View {
                         .frame(width: geometry.size.width * min(max(value, 0), 1))
                 }
             }
-            .frame(height: 8)
+            .frame(height: 7)
         }
     }
 }

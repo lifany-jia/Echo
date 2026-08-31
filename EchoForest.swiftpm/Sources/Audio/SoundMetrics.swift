@@ -18,7 +18,7 @@ struct SoundFrame: Equatable {
 }
 
 /// 一次创作会话的累计声音指标（真实 Sound DNA 的数据基础）。
-/// Stage 3 只维护数据模型，不把真实 summary 接进 Result（Result 继续使用 MockSoundProfile）。
+/// 当前 Result 展示的是确定性模拟 SoundProfile（未接真实麦克风 summary）。
 struct SoundProfile: Equatable {
     var duration: TimeInterval = 0
     var energy: Double = 0                 // 平均 normalized energy（0...1）
@@ -32,6 +32,23 @@ struct SoundProfile: Equatable {
     private var energySquaredSum = 0.0
     private var centroidSum = 0.0
     private var centroidCount = 0
+
+    /// 显式构造（供生成器 / 测试构造确定性 mock 输入；累计字段保持初始值）。
+    init(
+        duration: TimeInterval = 0,
+        energy: Double = 0,
+        peakEnergy: Double = 0,
+        spectralCentroidHz: Double? = nil,
+        onsetCount: Int = 0,
+        variation: Double = 0
+    ) {
+        self.duration = duration
+        self.energy = energy
+        self.peakEnergy = peakEnergy
+        self.spectralCentroidHz = spectralCentroidHz
+        self.onsetCount = onsetCount
+        self.variation = variation
+    }
 
     mutating func accumulate(frame: SoundFrame, frameDuration: TimeInterval) {
         frameCount += 1

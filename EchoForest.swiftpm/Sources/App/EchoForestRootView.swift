@@ -28,7 +28,7 @@ struct EchoForestRootView: View {
                 )
             case .growing:
                 GrowingView(
-                    plant: flow.currentPlant ?? .demo,
+                    plant: flow.currentPlant ?? PlantGenerator.makeSimulatedPlant(index: 1),
                     isListening: audio.isListening,
                     receivedBufferCount: audio.receivedBufferCount,
                     lastFrameLength: audio.lastFrameLength,
@@ -47,7 +47,7 @@ struct EchoForestRootView: View {
                 )
             case .result:
                 ResultView(
-                    plant: flow.currentPlant ?? .demo,
+                    plant: flow.currentPlant ?? PlantGenerator.makeSimulatedPlant(index: 1),
                     onPlantInForest: {
                         audio.stopListening()
                         flow.plantCurrentInForest()

@@ -31,13 +31,13 @@
 - Stage 1 静态体验闭环（Forest → Seed → Growing → Result → Forest）：DONE
 - 音频输入（Stage 2）：DONE（代码层；真实麦克风运行时 NOT RUN）
 - 声音分析（Stage 3）：DONE（代码层；真实麦克风 → analyzer 集成 NOT RUN）
-- 植物程序化生成：NOT STARTED（Stage 4）
+- 植物生成（Stage 4）：DONE（代码层；真实麦克风耦合 NOT STARTED）
 - 实时耦合：NOT STARTED（Stage 5）
 - 森林保存：NOT STARTED（Stage 6）
 - 视觉精修：NOT STARTED（Stage 7）
 - 提交包：NOT STARTED（Stage 8）
 
-Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy / Rhythm / Variation）、`MockPlantModel`、`MockPlantCanvas` 均为静态模拟。Stage 2 已接入 AVAudioEngine 输入链路与权限流程。Stage 3 已实现真实指标：RMS / Energy（noise floor + normalize + clamp）、Spectral Centroid（频率代理，非 Pitch）、Onset（能量域 + cooldown），Growing 页展示 Live Metrics。Result Sound DNA 仍为 mock；植物生长映射、PlantGenerator、Growth Engine、持久化均未实现。森林状态仅存在于当前运行周期内存，无持久化。
+Stage 1–3 状态：Stage 2 已接入 AVAudioEngine 输入链路与权限流程；Stage 3 已实现真实指标 RMS / Energy、Spectral Centroid（频率代理，非 Pitch）、Onset，Growing 页展示 Live Metrics。Stage 4 已建立 Plant 模块（BranchModel / PlantStructure / PlantModel / GrowthState / PlantGenerator / PlantRenderer）：由确定性模拟 SoundProfile 驱动生成植物，五维映射 Energy→粗细、Centroid→方向/高度、Variation→弯曲/分叉、Onset→叶/花、Duration→尺度/深度；相同 profile + seed 完全可复现。Result Sound DNA 展示模拟 profile（明确标注 mock）。真实麦克风耦合（Stage 5）与持久化（Stage 6）未实现；森林状态仅存在于当前运行周期内存。
 
 权限配置注意：App Playground 的官方做法是在 Xcode 打开后，通过 Signing & Capabilities 添加 Microphone capability；仓库包根已附带 `Info.plist`（NSMicrophoneUsageDescription）作为尽力配置，需在 Xcode 中确认生效。
 
@@ -51,8 +51,8 @@ Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy /
 1. Static Experience — DONE（静态 mock 闭环，未接音频）
 2. Audio Input — DONE（代码层；真机麦克风 NOT RUN）
 3. Audio Metrics — DONE（代码层；真机音频集成 NOT RUN）
-4. Growth Engine — 下一项
-5. Real-time Coupling
+4. Growth Engine — DONE（代码层；真实麦克风耦合 NOT STARTED）
+5. Real-time Coupling — 下一项
 6. Forest Persistence
 7. Presentation Polish
 8. Submission Hardening
@@ -81,16 +81,16 @@ docs(handoff): update current project state
 
 ## 当前最推荐的第一项代码任务
 
-Stage 3 已完成代码层指标。下一项任务是 Stage 4 — Growth Engine：
+Stage 4 已完成代码层生长引擎。下一项任务是 Stage 5 — Real-time Coupling：
 
-> 先不接真实音频：用固定 SoundProfile 模拟参数生成程序化植物（PlantGenerator / BranchModel / GrowthState），验证 A/B/C 固定输入形态可分辨、固定 seed 可重复；再接真实指标。完成后按 `feat(plant): ...` 提交。
+> 把 AudioAnalyzer 的真实 SoundProfile 接入 PlantGenerator：每 N 帧用累计指标重新生成/演化植物（不每 buffer 重建），验证静音不疯长、大小声/高低频/拍手有可见差异、结束录音后状态正确停止。完成后按 `feat(plant): ...` 提交。
 
-Stage 3 验证：
+Stage 4 验证：
 
 - `swift build --package-path EchoForest.swiftpm` PASS
-- Stage 3 metrics self-test PASS（Energy / Frequency / Onset / Session profile）
-- Stage 1 / Stage 2 regression PASS
-- 真实麦克风 → analyzer 集成：NOT RUN（当前机器 active developer directory 是 Command Line Tools，无法运行 App Playground / 授权麦克风）
+- Stage 4 plant generator self-test PASS（确定性 / 单变量 / 极端输入 / 上限）
+- Stage 1 / Stage 2 / Stage 3 regression PASS
+- Xcode / microphone runtime：NOT RUN（Command Line Tools 环境）
 
 ## 绝对不要忘记
 
