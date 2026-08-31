@@ -4,24 +4,25 @@
 
 ## 1. 当前架构状态
 
-**代码状态：Stage 1 DONE（静态体验闭环）**
+**代码状态：Stage 2 DONE（Audio Input；真实麦克风运行时 NOT RUN）**
 
-当前为静态 mock 闭环：
+当前结构：
 
 - `EchoForest.swiftpm/Package.swift`：SwiftPM 包配置，生成 `EchoForest` executable；无测试 target（本工具链无 Swift Testing / XCTest，改用零依赖自测）。
 - `EchoForest.swiftpm/Sources/App/AppStage.swift`：`forest / seed / growing / result` 四状态，是唯一页面切换来源。
-- `EchoForest.swiftpm/Sources/App/EchoForestFlow.swift`：内存流程状态机，持有 `stage / plantedPlants / currentPlant`，负责进入 Seed、开始/结束 mock 生长、种入森林、二次创作重置。
-- `EchoForest.swiftpm/Sources/App/EchoForestRootView.swift`：按 `flow.stage` 分发四页。
-- `EchoForest.swiftpm/Sources/Models/MockSoundProfile.swift`：mock 四维声音画像（pitch / energy / rhythm / variation），固定 demo 值。
-- `EchoForest.swiftpm/Sources/Models/MockPlantModel.swift`：mock 植物模型（id / name / profile）。
-- `EchoForest.swiftpm/Sources/Rendering/MockPlantCanvas.swift`：SwiftUI Canvas 程序化植物（主干曲线 + 分支 + 叶簇），支持 progress 与 bloom 开关。
-- `EchoForest.swiftpm/Sources/Views/ForestView.swift`：森林页，空地块 / 已种植物网格 + 主按钮。
-- `EchoForest.swiftpm/Sources/Views/SeedView.swift`：种子页，静态 SeedMark。
-- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：mock 生长页，明确标注非真实声音驱动。
-- `EchoForest.swiftpm/Sources/Views/ResultView.swift`：结果页，Mock Sound DNA 四项。
-- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift`：零依赖流程自测，直接编译项目真实源文件执行断言。
+- `EchoForest.swiftpm/Sources/App/EchoForestFlow.swift`：内存流程状态机，持有 `stage / plantedPlants / currentPlant`，负责进入 Seed、开始/结束创作、种入森林、二次创作重置。
+- `EchoForest.swiftpm/Sources/Audio/AudioInputState.swift`：纯状态模型（权限四态 + 会话阶段 + 轻量计数），独立于 AVFoundation，供零依赖自测。
+- `EchoForest.swiftpm/Sources/Audio/AudioEngineController.swift`：AVAudioEngine 输入链路控制器（@MainActor @Observable）。UI 只观察其状态，不直接操作 engine。
+- `EchoForest.swiftpm/Sources/App/EchoForestRootView.swift`：持有 flow + audio；Seed “开始创作”异步执行权限 → startListening → 成功才进入 Growing；拒绝/失败弹 alert。
+- `EchoForest.swiftpm/Sources/Views/SeedView.swift`：种子页；按钮“开始创作”，提示首次请求权限。
+- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：Listening 徽标 + buffer 链路计数 + 取消按钮；植物视觉仍为 mock。
+- `EchoForest.swiftpm/Sources/Models/MockSoundProfile.swift` / `MockPlantModel.swift`：mock 数据（Stage 1 保留）。
+- `EchoForest.swiftpm/Sources/Rendering/MockPlantCanvas.swift`：Canvas 程序化 mock 植物（Stage 1 保留）。
+- `EchoForest.swiftpm/Sources/Views/ForestView.swift` / `ResultView.swift`：森林 / 结果页（Stage 1 保留，Result 继续展示 Mock Sound DNA）。
+- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift` / `Stage2AudioSelfTest.swift`：零依赖自测。
+- `EchoForest.swiftpm/Info.plist`：NSMicrophoneUsageDescription（尽力配置；官方路径为 Xcode capability）。
 
-Stage 2+ 模块（Audio / Plant / Persistence）尚未创建。
+Stage 3+ 模块（AudioAnalyzer / PitchDetector / OnsetDetector / Plant / Persistence）尚未创建。
 
 ---
 
@@ -200,3 +201,40 @@ Commit: `feat(flow): build static creation loop`
 ### Known risks
 - 静态闭环未在真机/模拟器图形化运行中验证（NOT RUN）。
 - Growing 为静态 mock 视觉，真实声音耦合需 Stage 2–5。
+
+## 2026-08-31 — pending
+
+Commit: `feat(audio): add microphone input pipeline`
+
+### Files
+- `Sources/Audio/AudioInputState.swift`：新增；纯状态模型（权限 + 阶段 + 轻量计数）。
+- `Sources/Audio/AudioEngineController.swift`：新增；AVAudioEngine 输入链路控制器。
+- `EchoForest.swiftpm/Info.plist`：新增；NSMicrophoneUsageDescription（尽力配置，官方路径为 Xcode capability）。
+- `Sources/App/EchoForestFlow.swift`：`startMockGrowing` → `startGrowing`；新增 `cancelGrowing`；防重复进入 Growing。
+- `Sources/App/EchoForestRootView.swift`：持有 AudioEngineController，接入权限 → 启动 → Growing 流程；alert 处理拒绝/失败。
+- `Sources/Views/SeedView.swift`：按钮改为“开始创作”，文案“首次开始会请求麦克风权限。”。
+- `Sources/Views/GrowingView.swift`：Listening 徽标 + buffer 链路计数 + 取消按钮。
+- `SelfTests/Stage2AudioSelfTest.swift`：新增；零依赖状态/生命周期断言。
+- `SelfTests/Stage1FlowSelfTest.swift`：适配 `startGrowing` 更名。
+
+### Behavior change
+- 首次点击“开始创作”才请求麦克风权限；拒绝或启动失败不进入 Growing，可返回 Forest 或留在 Seed。
+- Growing 明确反映“麦克风输入已启动”，并显示收到 buffer 的轻量验证计数。
+- 结束 / 取消 / 返回都会停止 engine、移除 tap、清理会话状态；可再次创作且不产生 duplicate tap。
+
+### Design notes
+- 权限与 engine 启动分离：权限允许 ≠ engine 一定启动成功，两条路径有独立错误状态；失败后 permission 标记 `.unavailable`，重试成功恢复 `.authorized`。
+- 音频 callback 零分配、零 IO、零 DSP，只更新 OSAllocatedUnfairLock 保护的计数；UI 由 500ms 主线程定时任务同步，避免每个 buffer 高频刷新 SwiftUI。
+- tap 安装用 `hasTapInstalled` 防护，`removeTap` 仅在已安装时调用，避免 NSException；start / stop 幂等。
+- App Playground 无公开 Info.plist 编辑入口：官方方式是 Xcode Signing & Capabilities 添加 Microphone capability；包根 Info.plist 为尽力补充，需在 Xcode 验证。
+
+### Tests
+- `swift build --package-path EchoForest.swiftpm` PASS。
+- Stage 1 flow self-test PASS（回归）。
+- Stage 2 audio state self-test PASS。
+- 真实麦克风 callback：NOT RUN（Command Line Tools 环境无法运行 App Playground / 授权麦克风）。
+
+### Known risks
+- 真机/模拟器上 engine 启动、buffer 到达、权限弹窗行为未实测。
+- Info.plist / capability 生效未验证。
+- 音频会话中断（后台、媒体服务重置）处理未实现。

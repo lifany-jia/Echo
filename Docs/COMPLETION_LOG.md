@@ -18,7 +18,7 @@
 |---|---|---|---|
 | 0 | Build Baseline | DONE | `swift build --package-path EchoForest.swiftpm` PASS x2 |
 | 1 | Static Experience | DONE | `swift build` PASS + flow self-test PASS |
-| 2 | Audio Input | NOT STARTED | NOT RUN |
+| 2 | Audio Input | DONE（代码层） | build PASS + 状态自测 PASS；真机麦克风 NOT RUN |
 | 3 | Audio Metrics | NOT STARTED | NOT RUN |
 | 4 | Growth Engine | NOT STARTED | NOT RUN |
 | 5 | Real-time Coupling | NOT STARTED | NOT RUN |
@@ -136,3 +136,40 @@
 ### Commit
 - `580e07a chore(docs): relocate project logs under Docs/`
 - `fd9248f feat(flow): build static creation loop`
+
+## 2026-08-31 11:39 — Stage 2 Audio Input
+
+**Status:** DONE（代码层；真实麦克风运行时验证 NOT RUN）
+
+### 完成
+- 新增 `Sources/Audio/AudioInputState.swift`：纯状态模型。权限四态（notDetermined / authorized / denied / unavailable）+ 会话阶段（idle / requestingPermission / permissionDenied / starting / listening / failed / stopped），独立于 AVFoundation，供零依赖自测。
+- 新增 `Sources/Audio/AudioEngineController.swift`：AVAudioEngine 输入链路控制器（@MainActor @Observable）。负责权限请求、AVAudioSession（iOS）、inputNode + installTap、start / stop、tap 清理、错误状态。
+- Seed → Growing 接入真实权限流程：点击“开始创作”才请求权限；允许则启动 engine，成功后才进入 Growing；拒绝或启动失败不进入 Growing，显示明确提示，可返回 Forest 或留在 Seed。
+- Growing 显示 “Listening · 麦克风输入已启动” 徽标与轻量链路验证计数（收到 buffer 数、最近 frameLength）；无 RMS / 频谱等 Stage 3 指标。
+- 生命周期：结束创作 / 返回 / 取消均安全 stop engine、移除 tap、清理会话状态；再次创作可重新安装 tap 并启动，无 duplicate tap。
+- 音频 callback 只更新 OSAllocatedUnfairLock 保护的轻量计数；UI 状态由 500ms 主线程定时任务同步，避免每个 buffer 触发 SwiftUI 刷新。
+- 包根新增 `Info.plist`（NSMicrophoneUsageDescription）；记录 Xcode Signing & Capabilities 添加 Microphone capability 为官方路径。
+- `EchoForestFlow`：`startMockGrowing` 更名为 `startGrowing`，新增 `cancelGrowing`，防重复进入 Growing。
+
+### 验证
+- Command: `swift build --package-path EchoForest.swiftpm`
+- Result: PASS
+- Notes: Swift 6.3.3 / arm64 macOS；Build complete，无警告。
+- Command: `swiftc <Stage1 源文件> SelfTests/Stage1FlowSelfTest.swift -o /tmp/stage1_flow_self_test && /tmp/stage1_flow_self_test`
+- Result: PASS（Stage 1 flow self-test PASS，Stage 1 回归通过）
+- Command: `swiftc <Stage1 + AudioInputState 源文件> SelfTests/Stage2AudioSelfTest.swift -o /tmp/stage2_audio_self_test && /tmp/stage2_audio_self_test`
+- Result: PASS（Stage 2 audio state self-test PASS）
+- Notes: 覆盖 permission state transition、denied path、engine failure path、失败后重试恢复、start / stop 生命周期、第二次创作状态重置。
+- Command: 真实麦克风 buffer 验证（App Playground 图形运行 + 授权麦克风）
+- Result: NOT RUN
+- Notes: 当前环境只有 Command Line Tools，无法启动 App Playground、无法授权麦克风；不得声称“麦克风输入已验证正常”。
+
+### 未完成 / 风险
+- 真实 AVAudioEngine 运行时验证 NOT RUN（需 Xcode + 真机/模拟器授权麦克风）。
+- Info.plist / Microphone capability 在最终 App Playground 的生效需在 Xcode 中确认。
+- 音频会话中断（媒体服务重置、进入后台）未处理，属于后续 Stage。
+- RMS / pitch / onset / Sound DNA 真实计算 / 生长映射 / 持久化均未实现（Stage 3+）。
+
+### Commit
+- `pending feat(audio): add microphone input pipeline`
+- `pending docs(handoff): record stage 2 commit`

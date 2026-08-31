@@ -29,7 +29,7 @@
 - Git 仓库：DONE
 - SwiftPM App Playground：DONE
 - Stage 1 静态体验闭环（Forest → Seed → Growing → Result → Forest）：DONE
-- 音频输入：NOT STARTED（Stage 2）
+- 音频输入（Stage 2）：DONE（代码层；真实麦克风运行时 NOT RUN）
 - 声音分析：NOT STARTED（Stage 3）
 - 植物程序化生成：NOT STARTED（Stage 4）
 - 实时耦合：NOT STARTED（Stage 5）
@@ -37,7 +37,9 @@
 - 视觉精修：NOT STARTED（Stage 7）
 - 提交包：NOT STARTED（Stage 8）
 
-Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy / Rhythm / Variation）、`MockPlantModel`、`MockPlantCanvas` 均为静态模拟；不请求麦克风，不引入 AVAudioEngine / FFT / RMS / Pitch / Onset。森林状态仅存在于当前运行周期内存，无持久化。
+Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy / Rhythm / Variation）、`MockPlantModel`、`MockPlantCanvas` 均为静态模拟。Stage 2 已接入 AVAudioEngine 输入链路与权限流程，但唯一真实能力是 `Microphone → AVAudioEngine → AVAudioPCMBuffer`；RMS / FFT / Pitch / Onset / 真实 Sound DNA / 生长映射均未实现。森林状态仅存在于当前运行周期内存，无持久化。
+
+权限配置注意：App Playground 的官方做法是在 Xcode 打开后，通过 Signing & Capabilities 添加 Microphone capability；仓库包根已附带 `Info.plist`（NSMicrophoneUsageDescription）作为尽力配置，需在 Xcode 中确认生效。
 
 真实状态以后以 `COMPLETION_LOG.md` 为准。
 
@@ -47,8 +49,8 @@ Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy /
 
 0. Build Baseline — DONE
 1. Static Experience — DONE（静态 mock 闭环，未接音频）
-2. Audio Input — 下一项
-3. Audio Metrics
+2. Audio Input — DONE（代码层；真机麦克风 NOT RUN）
+3. Audio Metrics — 下一项
 4. Growth Engine
 5. Real-time Coupling
 6. Forest Persistence
@@ -79,15 +81,16 @@ docs(handoff): update current project state
 
 ## 当前最推荐的第一项代码任务
 
-Stage 1 已完成静态闭环。下一项任务是 Stage 2 — Audio Input：
+Stage 2 已完成代码层输入链路。下一项任务是 Stage 3 — Audio Metrics：
 
-> 接入 AVAudioEngine 获取麦克风 buffer；处理权限允许与拒绝两条路径；先不做指标分析（RMS / pitch / onset 属于 Stage 3）。完成后按 `feat(audio): ...` 提交。
+> 用纯函数/可注入输入实现并验证 RMS / 能量，再增加 pitch 或频域代理指标，最后增加 onset；继续沿用零依赖自测模式。完成后按 `feat(audio): ...` / `test(audio): ...` 提交。
 
-Stage 1 验证：
+Stage 2 验证：
 
 - `swift build --package-path EchoForest.swiftpm` PASS
-- 零依赖流程自测 PASS（“Stage 1 flow self-test PASS”）
-- `xcodebuild` NOT RUN：当前机器 active developer directory 是 Command Line Tools，不是完整 Xcode
+- Stage 1 flow self-test PASS（回归）
+- Stage 2 audio state self-test PASS
+- 真实麦克风 callback：NOT RUN（当前机器 active developer directory 是 Command Line Tools，无法运行 App Playground / 授权麦克风）
 
 ## 绝对不要忘记
 

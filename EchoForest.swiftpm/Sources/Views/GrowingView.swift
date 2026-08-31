@@ -2,7 +2,11 @@ import SwiftUI
 
 struct GrowingView: View {
     let plant: MockPlantModel
+    let isListening: Bool
+    let receivedBufferCount: Int
+    let lastFrameLength: Int?
     let onFinish: () -> Void
+    let onCancel: () -> Void
 
     var body: some View {
         ZStack {
@@ -11,20 +15,26 @@ struct GrowingView: View {
 
             VStack(spacing: 18) {
                 VStack(spacing: 8) {
-                    Text("Mock 生长中")
+                    Text("生长中")
                         .font(.largeTitle.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    Text("这是一段静态模拟，不是真实声音驱动。")
+                    Text("植物视觉仍为静态模拟，不随声音变化。")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.66))
                 }
 
+                ListeningBadge(isListening: isListening)
+
                 MockPlantCanvas(plant: plant, progress: 0.72, showsBloom: false)
-                    .frame(maxHeight: 420)
+                    .frame(maxHeight: 380)
                     .padding(.vertical, 12)
 
                 MockGrowthMeter(profile: plant.profile)
+
+                Text("Stage 2 链路验证 · 收到 buffer: \(receivedBufferCount) · 最近 frameLength: \(lastFrameLength.map(String.init) ?? "-")")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
 
                 Button(action: onFinish) {
                     Text("结束并查看结果")
@@ -34,9 +44,32 @@ struct GrowingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.78, green: 0.59, blue: 0.34))
+
+                Button("取消", action: onCancel)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
             }
             .padding(28)
         }
+    }
+}
+
+private struct ListeningBadge: View {
+    let isListening: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(isListening ? Color(red: 0.55, green: 0.88, blue: 0.45) : Color.orange)
+                .frame(width: 10, height: 10)
+
+            Text(isListening ? "Listening · 麦克风输入已启动" : "正在启动麦克风…")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white.opacity(0.9))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.white.opacity(0.08), in: Capsule())
     }
 }
 

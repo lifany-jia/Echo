@@ -13,9 +13,15 @@ struct EchoForestFlow: Equatable {
         stage = .forest
     }
 
-    mutating func startMockGrowing() {
+    mutating func startGrowing() {
+        guard stage != .growing else { return }
         currentPlant = MockPlantModel.makeDemo(index: plantedPlants.count + 1)
         stage = .growing
+    }
+
+    mutating func cancelGrowing() {
+        currentPlant = nil
+        stage = .seed
     }
 
     mutating func finishMockGrowing() {

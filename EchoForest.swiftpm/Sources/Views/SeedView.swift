@@ -32,14 +32,14 @@ struct SeedView: View {
                     .font(.title2.weight(.medium))
                     .foregroundStyle(.white)
 
-                Text("Stage 1 使用 mock 流程，不请求麦克风。")
+                Text("首次开始会请求麦克风权限。")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.64))
 
                 Spacer()
 
                 Button(action: onStartGrowing) {
-                    Text("开始 mock 生长")
+                    Text("开始创作")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
