@@ -97,16 +97,7 @@ final class AudioEngineController {
             ?? validInputFormat(from: input)
 
         if !hasTapInstalled {
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { [bufferStats] buffer, _ in
-                let frameLength = Int(buffer.frameLength)
-                bufferStats.withLock { stats in
-                    stats.receivedCount += 1
-                    stats.lastFrameLength = frameLength
-                    let frame = stats.analyzer.process(buffer: buffer)
-                    stats.latestFrame = frame
-                    stats.profile = stats.analyzer.profile
-                }
-            }
+            Self.installInputTap(input: input, format: format, bufferStats: bufferStats)
             hasTapInstalled = true
         }
 
@@ -162,6 +153,25 @@ final class AudioEngineController {
         guard hasTapInstalled else { return }
         engine.inputNode.removeTap(onBus: 0)
         hasTapInstalled = false
+    }
+
+    /// 在 nonisolated 上下文创建 tap 闭包，避免闭包继承 @MainActor 隔离
+    /// 而被 AVAudioEngine 的 RealtimeMessenger 队列调用时触发 libdispatch 断言。
+    private nonisolated static func installInputTap(
+        input: AVAudioInputNode,
+        format: AVAudioFormat,
+        bufferStats: OSAllocatedUnfairLock<BufferStats>
+    ) {
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [bufferStats] buffer, _ in
+            let frameLength = Int(buffer.frameLength)
+            bufferStats.withLock { stats in
+                stats.receivedCount += 1
+                stats.lastFrameLength = frameLength
+                let frame = stats.analyzer.process(buffer: buffer)
+                stats.latestFrame = frame
+                stats.profile = stats.analyzer.profile
+            }
+        }
     }
 
     /// 约 6.7Hz（150ms）定时把音频线程上的 metrics snapshot 同步到可观察状态；
