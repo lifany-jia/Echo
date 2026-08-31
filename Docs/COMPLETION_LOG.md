@@ -211,5 +211,4 @@
 - 植物生长映射、PlantGenerator、BranchModel、Growth Engine、持久化均未实现（Stage 4+）。
 
 ### Commit
-- `pending feat(audio): add real-time sound metrics`
-- `pending docs(handoff): record stage 3 commit`
+- `ae524df feat(audio): add real-time sound metrics`

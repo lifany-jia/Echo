@@ -244,7 +244,7 @@ Commit: `feat(audio): add microphone input pipeline`
 - Info.plist / capability 生效未验证。
 - 音频会话中断（后台、媒体服务重置）处理未实现。
 
-## 2026-08-31 — pending
+## 2026-08-31 — ae524df
 
 Commit: `feat(audio): add real-time sound metrics`
 
