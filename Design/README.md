@@ -17,6 +17,9 @@
 Design/
 ├── figma-design-draft.html      # 主交付物：Figma 风格设计板（浏览器直接打开）
 ├── design-board-preview.png     # 设计板整板预览图（1680 × 6500）
+├── runtime-forest-empty.png     # App 落地后空森林主页截图（iOS 模拟器）
+├── runtime-forest-planted.png   # App 落地后已有森林 + 新植物高亮截图
+├── PROMPTS.md                   # 可复用提示词库（设计稿 / 图像 / 实现）
 ├── README.md
 ├── assets/
 │   ├── trees/                   # 7 幅树的表达（SVG 源文件 + 1200×1500 PNG）
@@ -30,6 +33,9 @@ Design/
 1. **查看设计稿**：直接双击打开 `figma-design-draft.html`。左侧为图层树，右侧为设计属性面板，点击任意画板可在右侧查看规格。
 2. **导入 Figma**：把 `assets/trees/*.svg` 或 `assets/trees/*.png` 直接拖入 Figma 画布。SVG 无损缩放，PNG 为位图预览。
 3. **对照实现**：设计板末尾「设计令牌」一节提供了 SwiftUI 映射表（Color / 圆角 / 字体 / 动效），可直接对应 `ForestView.swift`。
+4. **复现 / 复刻**：需要把设计方向、图像提示词或实现要求发给其他工具时，直接复制 `PROMPTS.md` 中的对应段落。
+
+主页设计已按本稿落地到 `EchoForest.swiftpm/Sources/Views/ForestView.swift`；`runtime-forest-*.png` 为模拟器实拍验证截图。
 
 ## 树的表达（六种声音性格）
 

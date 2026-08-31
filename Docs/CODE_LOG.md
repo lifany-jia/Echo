@@ -535,3 +535,30 @@ Commit: `03c672b feat(plant): add wild mode and sound memory`
 ### 风险 / 备注
 - 位图渲染依赖本机 Chrome headless；仓库内保留 SVG 源文件，PNG 可随时重导出。
 - 未提供 `.fig` 原生文件；Figma 以 SVG/PNG 导入。
+
+---
+
+## Stage 7 主页视觉落地（2026-08-31）
+
+### Files
+- `Sources/Views/ForestView.swift`：重写为主页深夜森林美学。`ForestPalette` 私有枚举集中管理 12 个颜色令牌（与设计稿 hex 一一对应，含 SwiftUI `Color(red:green:blue:)` 精确值）。
+- `Design/PROMPTS.md`：提示词库；`Design/runtime-forest-*.png`：模拟器实拍。
+
+### Behavior change
+- 主页视觉完全更新，但对外契约不变：`ForestView` 的入参与回调与之前一致，`EchoForestRootView` 无需改动。
+- 空森林从「小图块 + 白字」改为「种子 + 声音波纹 + 主题句」；已有森林从自适应网格改为「林中空地面板 + 计数胶囊 + 3 列网格」。
+- 新植物高亮新增悬浮 Sound DNA 铭牌（Energy / 频率 / 时长），数据来自 `PlantRecord.plant.profile`。
+
+### Design notes
+- 动画全部轻量：波纹/萤火用 `repeatForever` 的 scale/opacity，无高频 TimelineView；`accessibilityReduceMotion` 时全部退化为静态。
+- 强调色收敛：全页只有琥珀/萤火一个色相，CTA 用琥珀渐变 + 深色文字保证对比度（WCAG AA）。
+- 圆角体系与设计板一致（28/18/12/999）；暴走入口保持次按钮样式，不喧宾夺主。
+- 装饰元素（叶片徽标）用 `accessibilityHidden`，无假按钮。
+
+### Tests
+- `swift build` PASS；8 个 self-test 全部 PASS；`xcodebuild` simulator build PASS。
+- 模拟器 runtime：autopilot 真实种植 1 棵 → 截图验证空/种植/高亮三态 PASS。
+
+### Known risks
+- 模拟器截图为像素级验证，未做人工目检（当前环境不支持图像输入）；建议真机人工过一遍。
+- Frame D 暴走主页变体未实现（概念稿）。

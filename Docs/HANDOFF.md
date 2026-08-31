@@ -37,7 +37,8 @@
 - Stage 6.5 Sound Tree Redesign & Audio Memory：DONE（模拟器录音/保存/重启/详情播放 PASS）
 - Stage 6.5+ Wild Mode + Tree Grammar 2.0 渲染 + PlantRecord v2：DONE（模拟器 Normal/Wild runtime PASS；真机/真实拍手 NOT RUN）
 - Design 主页 UI 设计稿与树的表达（并行交付物，`Design/`）：DONE
-- 视觉精修：PAUSED / NOT STARTED（Stage 7，不要继续 Presentation Polish，除非用户重新明确恢复）
+- Stage 7 主页视觉落地（Forest 主页按设计稿重做）：DONE（模拟器截图验证；用户已明确恢复主页部分）
+- 视觉精修（Growing / Result / Detail）：PAUSED / NOT STARTED（Stage 7 其余部分仍等用户明确恢复）
 - 提交包：NOT STARTED（Stage 8）
 
 Stage 1–6.5 状态：Stage 2 已接入 AVAudioEngine 输入链路与权限流程；Stage 3 已实现真实指标 RMS / Energy、Spectral Centroid（频率代理，非 Pitch）、Onset；Stage 4/6.5 的 Plant 模块现在使用明确层级 tree grammar（1 trunk、4–7 primary、secondary、terminal twigs），相同 sound-frame 序列 + seed 完全可复现。Stage 5 已实现实时耦合：GrowthSession（纯核心）+ LiveGrowthController（150ms cadence）把 SoundFrame 序列增量推进植物，静音不增长、有声才长、大声更粗更长、energy slope 控制左右、centroid 控制横向/向上、variation 控制弯曲、onset 在 terminal twigs 开花。Stage 6 持久化已升级为 PlantRecord：PlantModel + SoundProfile + createdAt + relative audio filename + audioDuration；音频保存在 `Application Support/EchoForest/Audio/<plantUUID>.m4a`，JSON 不存 base64。
@@ -138,7 +139,7 @@ docs(handoff): update current project state
 
 Stage 6.5+ 已完成。当前不要开始 Stage 7；下一步必须等用户明确恢复 Presentation Polish 或给出新的修正项。
 
-如需推进主页视觉，先读 `Design/README.md`：`Design/figma-design-draft.html` 是主页 UI 的 Figma 风格设计板（4 状态画板 + 设计令牌 + SwiftUI 映射），`Design/assets/trees/` 与 `Design/assets/plants/` 是程序化树/植物资产（SVG 源文件 + PNG），可拖入 Figma，也可作为 Stage 7 的视觉基准。注意：Design 为独立并行交付，未改动 App 代码。
+主页视觉已按设计稿落地（`Sources/Views/ForestView.swift`），模拟器截图见 `Design/runtime-forest-*.png`；可复用提示词见 `Design/PROMPTS.md`。若继续 Stage 7 其余部分（Growing / Result / Detail 视觉精修），请用户明确恢复后再动手；设计基准仍是 `Design/figma-design-draft.html` 与 `Design/assets/`。
 
 当前验证基线：
 

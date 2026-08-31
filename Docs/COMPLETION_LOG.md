@@ -523,3 +523,37 @@
 
 ### Commit
 - `docs(design): add homepage UI design draft and procedural tree artwork`（仅含 `Design/`，未混入其他未提交改动）
+
+---
+
+## Stage 7 主页视觉落地（2026-08-31，用户明确要求把设计稿写进项目）
+
+**Status:** DONE（Forest 主页按 `Design/figma-design-draft.html` Frame A/B/C 重做；模拟器截图验证 PASS）
+
+### 完成
+- `Sources/Views/ForestView.swift` 重写，对外接口不变（plantedRecords / highlightedPlantID / onStart / onStartWild / onSelectRecord），不触碰 Seed / Growing / Result / Detail 流程。
+- 深夜森林背景：墨夜绿 `#0B1512` → 林间 `#1C3A2C` → 琥珀地平线 `#3A3120` 渐变 + 右上月光 + 3 条模糊雾带 + 5 颗萤火点（轻量 pulse，尊重 `accessibilityReduceMotion`）。
+- 空森林：150pt 种子 + 三圈声音波纹（easeOut 3.2s 循环、错峰 1.07s）+ 主题句「每一种声音，都可以生长。」29pt bold + 副文案。
+- 已有森林：28pt 圆角深色「林中空地」面板 + 「森林里有 N 棵植物」琥珀计数胶囊 + LazyVGrid(adaptive min 100) 植物网格；植物块 18pt 圆角、玻璃底、月白名字、暴走 ⚡ 标记。
+- 新植物高亮：琥珀边框/光环 + 面板顶部悬浮铭牌「新种下 · 名称」+ Sound DNA 一行（Energy / 频率 Hz / 时长 s），1.8s 后随既有逻辑淡出。
+- 底部操作区：56pt 琥珀渐变胶囊主按钮「种下一段声音」（深色文字 #211500、柔光阴影）+ 描边次按钮「⚡ 让它暴走」+ 小字「拍手会开花 · 高音会长高」。
+- `Design/PROMPTS.md`：可复用提示词库（设计稿 / 7 幅树的图像 / SwiftUI 实现 / 整包复刻）。
+- `Design/runtime-forest-*.png`：模拟器实拍截图（空森林 / 已有森林+高亮），压缩后约 180KB 各。
+
+### 验证
+- Command: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build --package-path EchoForest.swiftpm`
+- Result: PASS（Build complete，2.5s）
+- Command: 8 个零依赖自测（swiftc 编译 Sources + SelfTests 逐个执行）
+- Result: 全部 PASS（Stage1/2/3/4/5/6/6.5 sound tree/6.5 wild）
+- Command: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build`
+- Result: PASS（BUILD SUCCEEDED）
+- Command: 模拟器安装 + `ECHO_FOREST_AUTOPILOT=1`（1 会话）真实流程
+- Result: `[AUTOPILOT] session 1 planted; total=1`；截图像素校验：空森林深绿渐变 + 琥珀 CTA（CTA 区琥珀像素 39.7%）+ 月白标题；种植后中区出现琥珀高亮（754 像素），8s 后淡出（187 像素）。
+
+### 未完成 / 风险
+- 只落地了主页（Frame A/B/C）；Frame D 暴走模式变体为概念稿，主页保持普通流程 + ⚡ 次入口，未做暴走专属主页态。
+- 其余 Stage 7 精修（Growing / Result / Detail 视觉）仍未开始，需用户明确恢复。
+- 真机视觉效果与人耳听感仍未验证（模拟器 PASS）。
+
+### Commit
+- `feat(ui): apply dusk-forest homepage redesign from design draft`
