@@ -255,5 +255,4 @@
 - Xcode / 真机图形运行仍未验证（NOT RUN）。
 
 ### Commit
-- `pending feat(plant): add deterministic growth engine`
-- `pending docs(handoff): record stage 4 commit`
+- `c26e338 feat(plant): add deterministic growth engine`
