@@ -4,25 +4,24 @@
 
 ## 1. 当前架构状态
 
-**代码状态：Stage 0 DONE**
+**代码状态：Stage 1 DONE（静态体验闭环）**
 
-当前已创建最小 App Playground：
+当前为静态 mock 闭环：
 
-- `EchoForest.swiftpm/Package.swift`：SwiftPM 包配置，生成 `EchoForest` executable。
-- `EchoForest.swiftpm/Sources/App/EchoForestApp.swift`：SwiftUI App 入口。
-- `EchoForest.swiftpm/Sources/App/AppStage.swift`：当前仅包含 Stage 0 所需的 `forest` 状态。
-- `EchoForest.swiftpm/Sources/Views/ForestView.swift`：首屏 Forest 基线视图。
+- `EchoForest.swiftpm/Package.swift`：SwiftPM 包配置，生成 `EchoForest` executable；无测试 target（本工具链无 Swift Testing / XCTest，改用零依赖自测）。
+- `EchoForest.swiftpm/Sources/App/AppStage.swift`：`forest / seed / growing / result` 四状态，是唯一页面切换来源。
+- `EchoForest.swiftpm/Sources/App/EchoForestFlow.swift`：内存流程状态机，持有 `stage / plantedPlants / currentPlant`，负责进入 Seed、开始/结束 mock 生长、种入森林、二次创作重置。
+- `EchoForest.swiftpm/Sources/App/EchoForestRootView.swift`：按 `flow.stage` 分发四页。
+- `EchoForest.swiftpm/Sources/Models/MockSoundProfile.swift`：mock 四维声音画像（pitch / energy / rhythm / variation），固定 demo 值。
+- `EchoForest.swiftpm/Sources/Models/MockPlantModel.swift`：mock 植物模型（id / name / profile）。
+- `EchoForest.swiftpm/Sources/Rendering/MockPlantCanvas.swift`：SwiftUI Canvas 程序化植物（主干曲线 + 分支 + 叶簇），支持 progress 与 bloom 开关。
+- `EchoForest.swiftpm/Sources/Views/ForestView.swift`：森林页，空地块 / 已种植物网格 + 主按钮。
+- `EchoForest.swiftpm/Sources/Views/SeedView.swift`：种子页，静态 SeedMark。
+- `EchoForest.swiftpm/Sources/Views/GrowingView.swift`：mock 生长页，明确标注非真实声音驱动。
+- `EchoForest.swiftpm/Sources/Views/ResultView.swift`：结果页，Mock Sound DNA 四项。
+- `EchoForest.swiftpm/SelfTests/Stage1FlowSelfTest.swift`：零依赖流程自测，直接编译项目真实源文件执行断言。
 
-后续仍按推荐模块推进：
-
-- `Audio`：麦克风输入、RMS、频域/Pitch、Onset
-- `Plant`：程序化植物模型与生长规则
-- `Rendering`：枝条绘制、生长动画、粒子/叶片/花朵
-- `Models`：SoundProfile / ForestModel
-- `Persistence`：轻量本地保存
-- `Views`：Forest / Seed / Growing / Result
-
-实际实现后，以仓库代码为准，并更新本文件。
+Stage 2+ 模块（Audio / Plant / Persistence）尚未创建。
 
 ---
 
@@ -162,3 +161,42 @@ Commit: `build(app): add SwiftPM baseline`
 ### Known risks
 - App Playground 手动打开未在当前环境验证。
 - 首屏之后的核心体验仍全部等待后续 Stage。
+
+## 2026-08-31 — pending
+
+Commit: `feat(flow): build static creation loop`
+
+### Files
+- `Docs/CODE_LOG.md`、`Docs/COMPLETION_LOG.md`、`Docs/HANDOFF.md`、`Docs/TEST_PLAN.md`：由仓库根目录迁入 `Docs/`。
+- `.gitignore`：新增 `EchoForest.swiftpm/.swiftpm/` 忽略。
+- `Sources/App/AppStage.swift`：新增 `seed / growing / result` 三个 case。
+- `Sources/App/EchoForestApp.swift`：入口改为展示 `EchoForestRootView`。
+- `Sources/App/EchoForestFlow.swift`：新增；内存流程状态机。
+- `Sources/App/EchoForestRootView.swift`：新增；按 `AppStage` 分发四页。
+- `Sources/Models/MockSoundProfile.swift`：新增；mock 四维声音画像。
+- `Sources/Models/MockPlantModel.swift`：新增；mock 植物模型。
+- `Sources/Rendering/MockPlantCanvas.swift`：新增；Canvas 程序化 mock 植物。
+- `Sources/Views/ForestView.swift`：重写；空地块 + 已种植物网格 + 主按钮。
+- `Sources/Views/SeedView.swift`、`GrowingView.swift`、`ResultView.swift`：新增。
+- `SelfTests/Stage1FlowSelfTest.swift`：新增；零依赖流程断言。
+
+### Behavior change
+- 启动后可在 Forest → Seed → Growing → Result → Forest 完成静态闭环。
+- 回到 Forest 可看到本次运行中已种下的 mock 植物；再次创作不残留上次 GrowthState。
+- 本阶段不请求麦克风权限、不引入任何音频依赖。
+
+### Design notes
+- 页面切换只有一个来源：`EchoForestFlow.stage`，符合 AGENTS.md “不要用多个 Bool 控制跳转”。
+- 所有声音数值均为固定 mock 常量，UI 文案明确带 “Mock / 静态模拟” 标识，避免暗示真实声音驱动。
+- 程序化视觉只依赖 SwiftUI Shape/Canvas/Path，无第三方库。
+- 森林状态仅保存在 `EchoForestFlow` 内存中，属于当前运行周期，符合 Stage 1 边界。
+- SwiftPM 测试 target 被移除：当前工具链缺少 Swift Testing 与 XCTest 模块，`swift test` 无法运行；采用 `swiftc` 直接编译真实源文件 + 断言的方式替代，待有完整 Xcode 环境后再恢复标准测试目标。
+
+### Tests
+- `swift build --package-path EchoForest.swiftpm` PASS。
+- `swiftc ... Stage1FlowSelfTest.swift` + 执行 PASS（“Stage 1 flow self-test PASS”）。
+- `xcodebuild` NOT RUN：Command Line Tools 环境。
+
+### Known risks
+- 静态闭环未在真机/模拟器图形化运行中验证（NOT RUN）。
+- Growing 为静态 mock 视觉，真实声音耦合需 Stage 2–5。

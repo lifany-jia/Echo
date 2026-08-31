@@ -1,5 +1,6 @@
 .DS_Store
 .build/
+EchoForest.swiftpm/.swiftpm/
 DerivedData/
 *.xcuserdata/
 *.xcuserstate

@@ -27,14 +27,17 @@
 
 - 项目治理与测试文档：DONE
 - Git 仓库：DONE
-- SwiftPM App Playground：Stage 0 DONE
-- 音频输入：NOT STARTED
-- 声音分析：NOT STARTED
-- 植物程序化生成：NOT STARTED
-- 实时耦合：NOT STARTED
-- 森林保存：NOT STARTED
-- 视觉精修：NOT STARTED
-- 提交包：NOT STARTED
+- SwiftPM App Playground：DONE
+- Stage 1 静态体验闭环（Forest → Seed → Growing → Result → Forest）：DONE
+- 音频输入：NOT STARTED（Stage 2）
+- 声音分析：NOT STARTED（Stage 3）
+- 植物程序化生成：NOT STARTED（Stage 4）
+- 实时耦合：NOT STARTED（Stage 5）
+- 森林保存：NOT STARTED（Stage 6）
+- 视觉精修：NOT STARTED（Stage 7）
+- 提交包：NOT STARTED（Stage 8）
+
+Stage 1 全部声音数据为固定 mock：`MockSoundProfile`（Pitch / Energy / Rhythm / Variation）、`MockPlantModel`、`MockPlantCanvas` 均为静态模拟；不请求麦克风，不引入 AVAudioEngine / FFT / RMS / Pitch / Onset。森林状态仅存在于当前运行周期内存，无持久化。
 
 真实状态以后以 `COMPLETION_LOG.md` 为准。
 
@@ -43,8 +46,8 @@
 严格按 `AGENTS.md` Stage 0–8：
 
 0. Build Baseline — DONE
-1. Static Experience
-2. Audio Input
+1. Static Experience — DONE（静态 mock 闭环，未接音频）
+2. Audio Input — 下一项
 3. Audio Metrics
 4. Growth Engine
 5. Real-time Coupling
@@ -76,16 +79,15 @@ docs(handoff): update current project state
 
 ## 当前最推荐的第一项代码任务
 
-Stage 0 已创建可编译的 `EchoForest.swiftpm` 基线和 Forest 首屏。
+Stage 1 已完成静态闭环。下一项任务是 Stage 2 — Audio Input：
 
-下一项任务是 Stage 1：
+> 接入 AVAudioEngine 获取麦克风 buffer；处理权限允许与拒绝两条路径；先不做指标分析（RMS / pitch / onset 属于 Stage 3）。完成后按 `feat(audio): ...` 提交。
 
-> 搭建 `AppStage` 与 Forest / Seed / Growing / Result 四阶段静态导航；使用 mock SoundProfile 和 mock PlantModel 完成一次完整闭环；不接麦克风。完成后按 `feat(flow): build static creation loop` 提交。
+Stage 1 验证：
 
-Stage 0 验证：
-
-- `swift build --package-path EchoForest.swiftpm` PASS x2
-- `xcodebuild` NOT RUN：当前机器 active developer directory 是 Command Line Tools，不是完整 Xcode。
+- `swift build --package-path EchoForest.swiftpm` PASS
+- 零依赖流程自测 PASS（“Stage 1 flow self-test PASS”）
+- `xcodebuild` NOT RUN：当前机器 active developer directory 是 Command Line Tools，不是完整 Xcode
 
 ## 绝对不要忘记
 

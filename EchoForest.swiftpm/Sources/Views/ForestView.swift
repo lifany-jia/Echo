@@ -1,25 +1,17 @@
 import SwiftUI
 
 struct ForestView: View {
+    let plantedPlants: [MockPlantModel]
+    let onStart: () -> Void
+
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.05, green: 0.09, blue: 0.08),
-                    Color(red: 0.09, green: 0.19, blue: 0.15),
-                    Color(red: 0.80, green: 0.64, blue: 0.36)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            ForestBackground()
 
-            VStack(spacing: 24) {
-                Spacer()
-
-                VStack(spacing: 10) {
+            VStack(spacing: 22) {
+                VStack(spacing: 8) {
                     Text("声音森林")
-                        .font(.system(size: 44, weight: .semibold, design: .rounded))
+                        .font(.system(size: 42, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
 
                     Text("每一种声音，都可以生长。")
@@ -27,18 +19,95 @@ struct ForestView: View {
                         .foregroundStyle(.white.opacity(0.82))
                 }
 
-                SeedMark()
-                    .frame(width: 116, height: 116)
-                    .accessibilityHidden(true)
+                Spacer(minLength: 8)
 
-                Spacer()
+                if plantedPlants.isEmpty {
+                    EmptyForestPlot()
+                        .frame(maxWidth: 360)
+                } else {
+                    PlantedForestGrid(plants: plantedPlants)
+                }
+
+                Spacer(minLength: 8)
+
+                Button(action: onStart) {
+                    Text("种下一段声音")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.46, green: 0.67, blue: 0.39))
+                .controlSize(.large)
             }
-            .padding(32)
+            .padding(28)
         }
     }
 }
 
-private struct SeedMark: View {
+private struct ForestBackground: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.05, green: 0.09, blue: 0.08),
+                Color(red: 0.09, green: 0.19, blue: 0.15),
+                Color(red: 0.78, green: 0.64, blue: 0.38)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+}
+
+private struct EmptyForestPlot: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            SeedMark()
+                .frame(width: 112, height: 112)
+
+            Text("这里还没有植物")
+                .font(.headline)
+                .foregroundStyle(.white.opacity(0.86))
+        }
+        .padding(28)
+        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.white.opacity(0.16), lineWidth: 1)
+        }
+    }
+}
+
+private struct PlantedForestGrid: View {
+    let plants: [MockPlantModel]
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("已种下 \(plants.count) 棵 mock 植物")
+                .font(.headline)
+                .foregroundStyle(.white.opacity(0.88))
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 12)], spacing: 12) {
+                ForEach(plants) { plant in
+                    VStack(spacing: 6) {
+                        MockPlantCanvas(plant: plant, progress: 1, showsBloom: true)
+                            .frame(height: 110)
+
+                        Text(plant.name)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.78))
+                            .lineLimit(1)
+                    }
+                    .padding(8)
+                    .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+}
+
+struct SeedMark: View {
     var body: some View {
         ZStack {
             Circle()
@@ -62,5 +131,6 @@ private struct SeedMark: View {
                 .rotationEffect(.degrees(-18))
                 .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
         }
+        .accessibilityLabel("静态种子")
     }
 }
