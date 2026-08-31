@@ -593,3 +593,24 @@
 
 ### Commit
 - `feat(plant): add creative refactor with sound gestures and wild free-for-all`
+
+---
+
+## 真机修复（2026-08-31，iPhone 17 / iOS 26.6.1 实测）
+
+**Status:** DONE（真机安装运行；修复点经代码与自测验证，视觉由用户真机确认）
+
+### 修复
+- 真机“点开始创作闪退”：`AudioEngineController` 之前把输入 tap 强制装成 44.1kHz，真机硬件采样率通常为 48kHz，`engine.start()` 触发 AVAEInternal 断言崩溃。改为使用输入节点硬件原生格式，`AudioAnalyzer` 按每帧 buffer 真实 sampleRate 计算时长与频域重心（模拟器硬件格式恰好匹配所以此前未暴露）。
+- 树“不是从底部生长”：`PlantRenderer` 之前按包围盒居中缩放，树干基部悬空。改为以树干基部为锚点贴底居中、向上生长，并让主干随 `revealSteps` 从约 35% 小苗逐步拔高到完整。
+- 树与设计稿不一致：渲染配色从棕色“算法线条树”改为深夜森林深绿（主干 #263F30 / 枝条 #335440）+ 鼠尾叶 + 琥珀花，并加基部地面柔光，对齐 `Design/assets/trees` 参考。
+
+### 验证
+- `swift build` PASS；9 个零依赖自测 PASS。
+- 真机（iPhone 17 / iOS 26.6.1）：构建 → 安装（com.echoforest.playground，Xcode 托管描述文件 + Apple Development 证书）→ 启动 → 进程持续存活，未再闪退。
+- 模拟器：Wild 脚本帧长出满叶大树（branches/flowers 正常），Result/森林渲染正常。
+- 说明：当前环境不支持人工目检图片，最终视觉效果以真机确认为准。
+
+### Commit
+- `fix(audio): use hardware input format to prevent real-device crash`
+- `fix(rendering): anchor plant base at bottom and align palette with design`

@@ -594,3 +594,22 @@ Commit: `03c672b feat(plant): add wild mode and sound memory`
 ### Known risks
 - Wild 真实麦克风手感未验证（脚本帧驱动 runtime）；真机未验证。
 - 音频中断处理未实现。
+
+---
+
+## 真机修复（2026-08-31）
+
+### Files
+- `Sources/Audio/AudioEngineController.swift`：tap 格式改用 `input.outputFormat(forBus: 0)` 硬件原生格式，不再硬编码 44.1k（真机 48k 会触发 AVAEInternal 断言崩溃）。
+- `Sources/Audio/AudioAnalyzer.swift`：`process(buffer:)` 使用 `buffer.format.sampleRate` 计算帧时长与频谱重心，init sampleRate 仅作兜底。
+- `Sources/Rendering/PlantRenderer.swift`：坐标系从“包围盒居中”改为“树干基部贴底居中”；主干随 revealSteps 从 35% 小苗长到完整；配色对齐设计稿（深林绿 + 琥珀花 + 地面柔光）。
+
+### Design notes
+- 底部锚定公式：`scale` 仍由 stableViewport 决定（保证生长过程不跳变），`offset` 由 `trunk.start` 映射到画布 `(0.5, 0.965)`，树冠自然向上留白。
+- 真机签名：使用既有 Xcode 托管描述文件（com.echoforest.playground，team 7L85RBZCY7，含设备 UDID 00008150-00091D360C63C01C）+ 本机 Apple Development 证书；临时工程在 `.device-build/`（工作区根，不入库）。
+
+### Tests
+- `swift build` PASS；9/9 自测 PASS；真机安装启动 PASS；`PHYSICAL CLAP` 仍 NOT RUN。
+
+### Known risks
+- 真机视觉效果未经本环境人工目检（无图像输入），由用户确认。
