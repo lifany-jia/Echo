@@ -82,6 +82,48 @@ struct BranchModel: Equatable, Codable {
         return bestT
     }
 
+    /// 单位空间里的 taper 轮廓。粗细用 `thickness` 本身，不能再乘画布 scale，
+    /// 否则会把屏幕像素当单位坐标，整棵树被涂成一团。
+    func taperedOutline(
+        fraction: Double,
+        endThicknessFactor: Double,
+        samples: Int = 10
+    ) -> (left: [CGPoint], right: [CGPoint]) {
+        let grown = prefix(fraction: min(max(fraction, 0), 1))
+        let startWidth = max(thickness, 1e-4)
+        let endWidth = max(thickness * endThicknessFactor, 1e-4)
+        let sampleCount = max(samples, 2)
+        var left: [CGPoint] = []
+        var right: [CGPoint] = []
+        left.reserveCapacity(sampleCount + 1)
+        right.reserveCapacity(sampleCount + 1)
+        for sample in 0...sampleCount {
+            let t = Double(sample) / Double(sampleCount)
+            let point = grown.point(at: t)
+            let tangent = Self.quadTangent(start: grown.start, control: grown.control, end: grown.end, t: t)
+            let length = hypot(tangent.x, tangent.y)
+            let normal: CGPoint
+            if length > 1e-9 {
+                normal = CGPoint(x: -tangent.y / length, y: tangent.x / length)
+            } else {
+                normal = CGPoint(x: 0, y: -1)
+            }
+            let width = startWidth + (endWidth - startWidth) * t
+            let hx = normal.x * width * 0.5
+            let hy = normal.y * width * 0.5
+            left.append(CGPoint(x: point.x - hx, y: point.y - hy))
+            right.append(CGPoint(x: point.x + hx, y: point.y + hy))
+        }
+        return (left, right)
+    }
+
+    private static func quadTangent(start: CGPoint, control: CGPoint, end: CGPoint, t: Double) -> CGPoint {
+        CGPoint(
+            x: 2 * (1 - t) * (control.x - start.x) + 2 * t * (end.x - control.x),
+            y: 2 * (1 - t) * (control.y - start.y) + 2 * t * (end.y - control.y)
+        )
+    }
+
     private static func lerp(_ a: CGPoint, _ b: CGPoint, _ t: Double) -> CGPoint {
         CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
     }
@@ -186,10 +228,11 @@ extension PlantStructure {
         return 1 - pow(1 - t, 3)
     }
 
-    /// 主干拔高进度：小苗约 35%，约 3 步长到完整。
+    /// 主干揭示：开场是一株小苗，随后交给模型层继续长高，不再把完整主干卡在 3 步动画里。
     func revealedTrunkFraction(steps: Double) -> Double {
         if !steps.isFinite { return 1 }
-        return min(max(0.35 + 0.65 * (steps / 3), 0), 1)
+        if steps <= 0 { return 0.58 }
+        return 1
     }
 
     /// 当前正在绘制的主干前缀（已套用 easeOut，与渲染器一致）。
@@ -220,17 +263,29 @@ extension PlantStructure {
     }
 
     func hostBranch(for event: PlantEvent) -> BranchModel? {
-        let candidates = branches.filter { $0.depth == event.depth }
+        guard let index = hostBranchIndex(for: event) else { return nil }
+        return branches[index]
+    }
+
+    func hostBranchIndex(for event: PlantEvent) -> Int? {
+        let candidates = branches.enumerated().filter { $0.element.depth == event.depth }
         guard !candidates.isEmpty else { return nil }
         return candidates.min { left, right in
-            left.distance(to: event.position) < right.distance(to: event.position)
-        }
+            left.element.distance(to: event.position) < right.element.distance(to: event.position)
+        }?.offset
+    }
+
+    /// 新枝按出生序号向外长，避免同深度的旧枝已经长完时新枝突然整段出现。
+    static func itemRevealFraction(index: Int, steps: Double) -> Double {
+        guard steps.isFinite else { return 1 }
+        return min(max(steps - Double(index), 0), 1)
     }
 
     /// 事件跟宿主枝条当前已长到的位置：末梢叶跟尖端，靠近主干的叶等枝条长过挂点再展开。
     func revealedPosition(for event: PlantEvent, steps: Double) -> CGPoint {
-        guard let host = hostBranch(for: event) else { return event.position }
-        let fraction = Self.easeOut(Self.revealFraction(depth: host.depth, step: steps))
+        guard let hostIndex = hostBranchIndex(for: event) else { return event.position }
+        let host = branches[hostIndex]
+        let fraction = Self.easeOut(Self.itemRevealFraction(index: hostIndex, steps: steps))
         let eventT = host.parameter(closestTo: event.position)
         let drawnT = min(eventT, fraction)
         let along = host.point(at: drawnT)

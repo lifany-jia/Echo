@@ -233,6 +233,63 @@ struct Stage4PlantSelfTest {
             expect(nearest < 0.08, "revealed leaf must stay on the currently grown branch, not float ahead of it")
         }
 
+        // 18. taper 轮廓必须在单位空间使用 thickness，不能把画布像素再乘进去。
+        let tape = BranchModel(
+            start: CGPoint(x: 0, y: 0),
+            end: CGPoint(x: 1, y: 0),
+            control: CGPoint(x: 0.5, y: 0),
+            thickness: 0.08,
+            depth: 0,
+            parentIndex: nil,
+            curvature: 0
+        )
+        let outline = tape.taperedOutline(fraction: 1, endThicknessFactor: 1)
+        expect(outline.left.count > 2 && outline.right.count == outline.left.count, "taper outline should sample both sides")
+        let startWidth = hypot(
+            outline.left[0].x - outline.right[0].x,
+            outline.left[0].y - outline.right[0].y
+        )
+        expect(abs(startWidth - 0.08) < 0.003, "taper width must equal unit-space thickness, not thickness * canvas scale")
+        expect(startWidth < 0.2, "taper must stay a thin branch in unit space")
+        let generatedTrunk = curved.trunk.taperedOutline(fraction: 1, endThicknessFactor: 0.18)
+        let trunkWidth = hypot(
+            generatedTrunk.left[0].x - generatedTrunk.right[0].x,
+            generatedTrunk.left[0].y - generatedTrunk.right[0].y
+        )
+        expect(abs(trunkWidth - curved.trunk.thickness) < 0.004, "generated trunk outline width must match trunk thickness")
+        expect(trunkWidth < 0.25, "generated trunk must not fill the unit canvas like a blob")
+
+        // 19. 实时会话：主干必须随时长/能量继续长高、变粗，而不是停在幼苗尺寸。
+        var live = PlantGenerator.initialStructure(profile: PlantGenerator.seedlingProfile, seed: 21)
+        let startHeight = live.trunk.start.y - live.trunk.end.y
+        let startThickness = live.trunk.thickness
+        for step in 1...20 {
+            PlantGenerator.appendGrowthStep(
+                to: &live,
+                params: PlantGenerator.LiveGrowthParams(
+                    energy: 0.72,
+                    centroid01: 0.62,
+                    variation: 0.4,
+                    energySlope: step.isMultiple(of: 2) ? 0.08 : -0.08,
+                    duration: Double(step) * 1.1
+                ),
+                seed: 21,
+                stepIndex: step
+            )
+        }
+        let grownHeight = live.trunk.start.y - live.trunk.end.y
+        expect(grownHeight > startHeight * 1.18, "long energetic session should grow a taller trunk")
+        expect(live.trunk.thickness > startThickness * 1.12, "long energetic session should grow a thicker trunk")
+
+        // 20. 同级主枝长度应接近，避免一根猛冲、一根几乎不动。
+        let primaryLengths = live.branches.filter { $0.depth == 1 }.map {
+            hypot($0.end.x - $0.start.x, $0.end.y - $0.start.y)
+        }
+        expect(primaryLengths.count >= 3, "live tree should grow several primary branches")
+        if let shortest = primaryLengths.min(), let longest = primaryLengths.max(), shortest > 0 {
+            expect(longest / shortest < 1.65, "primary branch lengths should stay even enough to look natural")
+        }
+
         if failures.isEmpty {
             print("Stage 4 plant generator self-test PASS")
         } else {

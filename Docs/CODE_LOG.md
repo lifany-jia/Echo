@@ -681,3 +681,22 @@ Commit: `03c672b feat(plant): add wild mode and sound memory`
 
 ### Known risks
 - `parameter(closestTo:)` 是采样近似，测试阈值用 0.005–0.008 单位空间，视觉上仍视为贴干。
+
+---
+
+## 主干长高加粗 + 分枝均匀（2026-09-01）
+
+### Files
+- `Sources/Plant/PlantGenerator.swift`：`LiveGrowthParams.duration`；`growTrunk`；同级枝按父枝比例取长；左右交替 + 能量升降偏向；`preferredParent` 把新枝优先长在升降对应的一侧。
+- `Sources/Plant/GrowthSession.swift`：把会话 `profile.duration` 传入生长参数。
+- `Sources/Plant/BranchModel.swift`：`taperedOutline` 单位空间粗细；`itemRevealFraction` / `hostBranchIndex`。
+- `Sources/Rendering/PlantRenderer.swift`：用单位空间轮廓再变换；新枝按出生序号揭示。
+- `SelfTests/Stage4PlantSelfTest.swift`：主干长高加粗、主枝长度均匀、taper 宽度断言。
+
+### Design notes
+- 幼苗会话若不再更新主干，30 秒后仍是 duration=2 的几何。现在每步向当前 duration/energy 的目标主干逼近，只增不减。
+- 旧 taper 把屏幕像素半宽加到单位坐标上，再乘 canvas scale，等效 `thickness * scale²`。
+
+### Tests
+- Stage 4 / 5 / 6.5 tree+audio / gesture PASS。
+- 模拟器 iPhone 16 安装运行：细主干可见。

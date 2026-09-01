@@ -40,6 +40,7 @@
 - 真机验证（iPhone 17 / iOS 26.6.1）：DONE（修复真机 48kHz 输入崩溃 + 树底部锚定 + 设计稿配色；真机安装运行 PASS）
 - 真机树形 / 生长修复：DONE（生长经济调优 + 分支厚度比例修正；真机安装运行 PASS）
 - 主干附着修复：DONE（de Casteljau 前缀生长 + 挂点门控 + 近干叶片；自测与模拟器构建 PASS；真机目检 NOT RUN）
+- 主干长高加粗 + 分枝均匀：DONE（实时主干随 duration/energy 长高加粗；同级枝长度收齐；taper 不再二次放大；iPhone 16 生长截图可见细主干）
 - Design 主页 UI 设计稿与树的表达（并行交付物，`Design/`）：DONE
 - Stage 7 主页视觉落地（Forest 主页按设计稿重做）：DONE（模拟器截图验证；用户已明确恢复主页部分）
 - App 图标（`Design/AppIcon/`，基于 tree-hero 主视觉的正方形构图）：DONE

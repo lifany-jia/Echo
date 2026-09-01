@@ -22,6 +22,8 @@ enum PlantGenerator {
         var lengthMultiplier: Double = 1
         /// Wild Burst：让开花更明显（只影响表现尺寸，不增加事件数量）。
         var flowerSizeMultiplier: Double = 1
+        /// 会话已进行时长，用于主干继续长高、变粗。
+        var duration: TimeInterval = 0
     }
 
     static let maxDepth = 4
@@ -113,7 +115,8 @@ enum PlantGenerator {
                     energy: input.energy,
                     centroid01: input.centroid01,
                     variation: input.variation,
-                    energySlope: slope
+                    energySlope: slope,
+                    duration: max(finite(profile.duration, fallback: 0), 0)
                 ),
                 seed: seed,
                 stepIndex: step
@@ -185,6 +188,7 @@ enum PlantGenerator {
         let centroid01 = clamp01(finite(params.centroid01, fallback: 0.5))
         let variation = clamp01(finite(params.variation, fallback: 0))
         let energySlope = finite(params.energySlope, fallback: 0)
+        growTrunk(to: &structure, params: params)
 
         var random = SeededRandom(seed: seed &+ UInt64(stepIndex) &* 0x9E37_79B9_7F4A_7C15)
 
@@ -211,7 +215,12 @@ enum PlantGenerator {
             secondaryCount: secondaryIndices.count,
             stepIndex: stepIndex
         ),
-                  let selectedParentIndex = primaryIndices[safe: stepIndex + Int(variation * 10)] {
+                  let selectedParentIndex = preferredParent(
+                    from: primaryIndices,
+                    slope: energySlope,
+                    in: structure,
+                    wrapping: stepIndex + Int(variation * 10)
+                  ) {
             tier = 2
             parent = structure.branches[selectedParentIndex]
             parentIndex = selectedParentIndex
@@ -220,7 +229,12 @@ enum PlantGenerator {
         } else if twigIndices.count < maxTerminalTwigs {
             tier = 3
             let candidates = secondaryIndices.isEmpty ? primaryIndices : secondaryIndices
-            guard let selectedParentIndex = candidates[safe: stepIndex * 2 + Int(variation * 13)] else { return }
+            guard let selectedParentIndex = preferredParent(
+                from: candidates,
+                slope: energySlope,
+                in: structure,
+                wrapping: stepIndex * 2 + Int(variation * 13)
+            ) else { return }
             parent = structure.branches[selectedParentIndex]
             parentIndex = selectedParentIndex
             let childCount = childrenCount(of: selectedParentIndex, in: structure)
@@ -230,35 +244,41 @@ enum PlantGenerator {
         }
 
         let parentDirection = normalizedDirection(from: parent.start, to: parent.end)
+        let parentLength = max(distance(parent.start, parent.end), 1e-4)
+        let siblingCount = parentIndex.map { childrenCount(of: $0, in: structure) } ?? primaryIndices.count
+        let alternateSide: Double = siblingCount.isMultiple(of: 2) ? -1 : 1
         let slopeSide: Double
-        if energySlope < -0.012 {
-            slopeSide = -1
-        } else if energySlope > 0.012 {
+        if energySlope > 0.012 {
             slopeSide = 1
-        } else if tier == 1 {
-            slopeSide = primaryIndices.count.isMultiple(of: 2) ? -1 : 1
+        } else if energySlope < -0.012 {
+            slopeSide = -1
         } else {
-            slopeSide = random.double01() < 0.5 ? -1 : 1
+            slopeSide = 0
         }
+        // 交替分叉保证左右都有枝；持续的能量升降只做偏向，避免某一根突然横着甩出去。
+        let side = alternateSide * 0.35 + slopeSide * 0.65
 
-        let lateral = 0.34 + (1 - centroid01) * 0.78
-        let vertical = 0.28 + centroid01 * 0.92
-        var desiredDirection = normalizeVector(CGPoint(x: slopeSide * lateral, y: -vertical))
-        if tier > 1 {
+        let parentPerp = CGPoint(x: -parentDirection.y, y: parentDirection.x)
+        var desiredDirection: CGPoint
+        if tier == 1 {
+            let spread = 0.40 + (1 - centroid01) * 0.22
+            let lift = 0.78 + centroid01 * 0.28
+            desiredDirection = normalizeVector(CGPoint(x: side * spread, y: -lift))
+        } else {
             desiredDirection = normalizeVector(CGPoint(
-                x: parentDirection.x * 0.28 + desiredDirection.x * 0.72,
-                y: parentDirection.y * 0.28 + desiredDirection.y * 0.72
+                x: parentDirection.x * 0.62 + parentPerp.x * side * 0.34,
+                y: parentDirection.y * 0.62 + parentPerp.y * side * 0.34 - 0.12
             ))
         }
 
-        let lengthBase: Double
+        let lengthRatio: Double
         switch tier {
-        case 1: lengthBase = 0.26
-        case 2: lengthBase = 0.17
-        default: lengthBase = 0.10
+        case 1: lengthRatio = 0.50 + energy * 0.08
+        case 2: lengthRatio = 0.46 + energy * 0.06
+        default: lengthRatio = 0.40 + energy * 0.05
         }
-        let childLength = lengthBase
-            * (0.82 + energy * 0.45 + random.double01() * 0.16)
+        let childLength = parentLength * lengthRatio
+            * (0.94 + random.double01() * 0.10)
             * clamp(finite(params.lengthMultiplier, fallback: 1), 0.5, 2.5)
         let end = CGPoint(
             x: start.x + desiredDirection.x * childLength,
@@ -274,7 +294,7 @@ enum PlantGenerator {
         // 只设极小的下限（末梢允许比 0.004 更细但不得为 0），
         // 绝不能像旧版那样钳到 0.7-1.0（在渲染缩放后等于画柱子）。
         let thickness = max(tierThickness, tier == 3 ? 0.004 : 0.006)
-        let curvature = childLength * (0.025 + 0.32 * variation) * (0.75 + 0.35 * random.double01())
+        let curvature = childLength * (0.04 + 0.16 * variation) * (0.88 + 0.16 * random.double01())
         let perpendicular = CGPoint(x: -desiredDirection.y, y: desiredDirection.x)
         let curveSign: Double = random.double01() < 0.5 ? -1 : 1
         let control = CGPoint(
@@ -379,6 +399,102 @@ enum PlantGenerator {
         }
     }
 
+    /// 主干随当前声音继续长高、变粗（只增不减），并把已有主枝一起带走，避免脱节。
+    private static func growTrunk(to structure: inout PlantStructure, params: LiveGrowthParams) {
+        let duration = max(finite(params.duration, fallback: 0), 0)
+        let energy = clamp01(finite(params.energy, fallback: 0))
+        let centroid01 = clamp01(finite(params.centroid01, fallback: 0.5))
+        let variation = clamp01(finite(params.variation, fallback: 0))
+        let centroidHz = minCentroidHz + centroid01 * (maxCentroidHz - minCentroidHz)
+        let target = makeTrunk(
+            normalize(
+                SoundProfile(
+                    duration: duration,
+                    energy: energy,
+                    peakEnergy: energy,
+                    spectralCentroidHz: centroidHz,
+                    onsetCount: 0,
+                    variation: variation
+                )
+            )
+        )
+
+        let oldTrunk = structure.trunk
+        let currentHeight = max(oldTrunk.start.y - oldTrunk.end.y, 1e-4)
+        let desiredHeight = max(target.start.y - target.end.y, currentHeight)
+        let grownHeight = currentHeight + min(max(desiredHeight - currentHeight, 0), 0.045)
+        let grownThickness = oldTrunk.thickness + min(max(target.thickness - oldTrunk.thickness, 0), 0.008)
+        let heightChanged = grownHeight > currentHeight + 1e-4
+        let thickChanged = grownThickness > oldTrunk.thickness + 1e-5
+        guard heightChanged || thickChanged else { return }
+
+        var newTrunk = oldTrunk
+        newTrunk.end = CGPoint(
+            x: oldTrunk.start.x + (target.end.x - target.start.x),
+            y: oldTrunk.start.y - grownHeight
+        )
+        newTrunk.thickness = grownThickness
+        let trunkLength = distance(newTrunk.start, newTrunk.end)
+        let trunkCurvature = trunkLength * (0.05 + 0.32 * variation)
+        let trunkMid = midpoint(newTrunk.start, newTrunk.end)
+        let trunkDirection = normalizedDirection(from: newTrunk.start, to: newTrunk.end)
+        newTrunk.control = CGPoint(
+            x: trunkMid.x + (-trunkDirection.y) * trunkCurvature,
+            y: trunkMid.y + trunkDirection.x * trunkCurvature
+        )
+        newTrunk.curvature = trunkCurvature
+
+        var primaryDelta: [Int: CGPoint] = [:]
+        for (index, branch) in structure.branches.enumerated() where branch.depth == 1 {
+            let t = oldTrunk.parameter(closestTo: branch.start)
+            let newStart = newTrunk.point(at: t)
+            primaryDelta[index] = CGPoint(x: newStart.x - branch.start.x, y: newStart.y - branch.start.y)
+        }
+
+        for eventIndex in structure.events.indices {
+            guard let hostIndex = structure.hostBranchIndex(for: structure.events[eventIndex]),
+                  let root = primaryRootIndex(hostIndex, in: structure),
+                  let delta = primaryDelta[root]
+            else { continue }
+            structure.events[eventIndex].position = translated(structure.events[eventIndex].position, by: delta)
+        }
+
+        let thickRatio = oldTrunk.thickness > 1e-6 ? grownThickness / oldTrunk.thickness : 1
+        for index in structure.branches.indices {
+            if let root = primaryRootIndex(index, in: structure), let delta = primaryDelta[root] {
+                structure.branches[index].start = translated(structure.branches[index].start, by: delta)
+                structure.branches[index].end = translated(structure.branches[index].end, by: delta)
+                structure.branches[index].control = translated(structure.branches[index].control, by: delta)
+            }
+            if thickRatio > 1 {
+                let boosted = structure.branches[index].thickness * thickRatio
+                let parentThick = structure.branches[index].parentIndex.flatMap { structure.branches.indices.contains($0) ? structure.branches[$0].thickness : nil } ?? grownThickness
+                structure.branches[index].thickness = min(boosted, parentThick * 0.72)
+            }
+        }
+
+        structure.trunk = newTrunk
+        structure.metadata.height = grownHeight
+        structure.metadata.trunkThickness = grownThickness
+        structure.metadata.maxBranchThickness = max(structure.metadata.maxBranchThickness, grownThickness)
+    }
+
+    private static func primaryRootIndex(_ index: Int, in structure: PlantStructure) -> Int? {
+        var current = index
+        var hops = 0
+        while structure.branches.indices.contains(current), hops < 8 {
+            if structure.branches[current].depth == 1 { return current }
+            guard let parent = structure.branches[current].parentIndex else { return nil }
+            current = parent
+            hops += 1
+        }
+        return nil
+    }
+
+    private static func translated(_ point: CGPoint, by delta: CGPoint) -> CGPoint {
+        CGPoint(x: point.x + delta.x, y: point.y + delta.y)
+    }
+
     // MARK: - 规范化辅助
 
     private struct NormalizedInput {
@@ -405,7 +521,8 @@ enum PlantGenerator {
         let onsetValue = finite(Double(profile.onsetCount), fallback: 0)
         let onsetCount = Int(min(max(onsetValue, 0), Double(maxOnsetCount)))
         let scale = 0.7 + 0.9 * duration01
-        let heightFactor = 0.45 + 0.55 * centroid01
+        // 高度同时吃时长和频率：长会话必须能明显长高，而不是停在幼苗高度。
+        let heightFactor = min(1.18, 0.36 + 0.38 * duration01 + 0.42 * centroid01)
         let slimFactor = 1.15 - 0.30 * centroid01
         // 单位空间内的树干粗细：约为主干长度的 5%-10%（0.03-0.11），
         // 渲染器会再乘画布缩放，因此这里必须是小数值；过大=画成柱子。
@@ -488,6 +605,27 @@ enum PlantGenerator {
 
     private static func childrenCount(of parentIndex: Int, in structure: PlantStructure) -> Int {
         structure.branches.filter { $0.parentIndex == parentIndex }.count
+    }
+
+    /// 能量下降优先在左侧父枝上长，上升优先右侧，避免整棵树左右乱甩。
+    private static func preferredParent(
+        from indices: [Int],
+        slope: Double,
+        in structure: PlantStructure,
+        wrapping: Int
+    ) -> Int? {
+        guard !indices.isEmpty else { return nil }
+        let trunkX = structure.trunk.start.x
+        let preferred: [Int]
+        if slope < -0.012 {
+            preferred = indices.filter { structure.branches[$0].end.x <= trunkX }
+        } else if slope > 0.012 {
+            preferred = indices.filter { structure.branches[$0].end.x >= trunkX }
+        } else {
+            preferred = indices
+        }
+        let pool = preferred.isEmpty ? indices : preferred
+        return pool[safe: wrapping]
     }
 
     private static func trunkSegmentDistance(_ point: CGPoint, trunk: BranchModel) -> Double {
