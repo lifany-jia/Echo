@@ -62,26 +62,24 @@ struct PlantRenderer: View {
             )
 
             // 主干从基部向上生长：起始是一株小苗（约 35%），随 revealSteps 拔高到完整。
-            // 底部粗、向上收细。
-            let trunkFraction = min(max(0.35 + 0.65 * (revealSteps / 3), 0), 1)
+            // 底部粗、向上收细。用原曲线前缀生长，保证枝叶挂点始终落在可见主干上。
+            let trunkFraction = structure.revealedTrunkFraction(steps: revealSteps)
             Self.strokeTaperedBranch(
                 structure.trunk,
                 fraction: trunkFraction,
                 transform: transform,
-                scale: scale,
                 color: trunkColor,
                 endThicknessFactor: 0.18,
                 in: &context
             )
 
-            for branch in structure.branches {
-                let fraction = Self.revealFraction(depth: branch.depth, step: revealSteps)
-                guard fraction > 0 else { continue }
+            for (index, branch) in structure.branches.enumerated() {
+                let fraction = PlantStructure.itemRevealFraction(index: index, steps: revealSteps)
+                guard fraction > 0, structure.shouldReveal(branch, steps: revealSteps) else { continue }
                 Self.strokeTaperedBranch(
                     branch,
                     fraction: fraction,
                     transform: transform,
-                    scale: scale,
                     color: branchColor,
                     endThicknessFactor: 0.42,
                     in: &context
@@ -89,9 +87,14 @@ struct PlantRenderer: View {
             }
 
             for event in structure.events {
-                let fraction = Self.revealFraction(depth: event.depth, step: revealSteps)
+                guard structure.shouldReveal(event, steps: revealSteps) else { continue }
+                let hostIndex = structure.hostBranchIndex(for: event)
+                let fraction = hostIndex.map { PlantStructure.itemRevealFraction(index: $0, steps: revealSteps) }
+                    ?? Self.revealFraction(depth: event.depth, step: revealSteps)
                 guard fraction > 0 else { continue }
-                Self.drawEvent(event, fraction: fraction, transform: transform, scale: scale, in: &context)
+                var moving = event
+                moving.position = structure.revealedPosition(for: event, steps: revealSteps)
+                Self.drawEvent(moving, fraction: fraction, transform: transform, scale: scale, in: &context)
             }
         }
         .accessibilityLabel("声音长成的植物")
@@ -99,12 +102,11 @@ struct PlantRenderer: View {
 
     /// 分支/事件的出现进度：depth 的分支在 step=depth-1 时开始出现，step=depth 时完成。
     static func revealFraction(depth: Int, step: Double) -> Double {
-        let raw = step - Double(depth - 1)
-        return min(max(raw, 0), 1)
+        PlantStructure.revealFraction(depth: depth, step: step)
     }
 
     private static func easeOut(_ value: Double) -> Double {
-        1 - pow(1 - value, 3)
+        PlantStructure.easeOut(value)
     }
 
     /// 把一条二次曲线枝画成“从粗到细”的填充形状：
@@ -114,47 +116,22 @@ struct PlantRenderer: View {
         _ branch: BranchModel,
         fraction: Double,
         transform: (CGPoint) -> CGPoint,
-        scale: Double,
         color: Color,
         endThicknessFactor: Double,
         in context: inout GraphicsContext
     ) {
-        let t = easeOut(fraction)
-        let start = branch.start
-        let end = CGPoint(
-            x: start.x + (branch.end.x - start.x) * t,
-            y: start.y + (branch.end.y - start.y) * t
+        // 轮廓在单位空间按 thickness 偏移，再映射到画布。
+        // 若先乘 scale 再当单位坐标去偏，树会被二次放大涂成一团绿。
+        let outline = branch.taperedOutline(
+            fraction: easeOut(fraction),
+            endThicknessFactor: endThicknessFactor
         )
-        let control = CGPoint(
-            x: start.x + (branch.control.x - start.x) * t,
-            y: start.y + (branch.control.y - start.y) * t
-        )
-
-        let startWidth = max(branch.thickness * scale, 0.6)
-        let endWidth = max(branch.thickness * endThicknessFactor * scale, 0.45)
-        let sampleCount = 10
-
-        var leftPoints: [CGPoint] = []
-        var rightPoints: [CGPoint] = []
-        for sample in 0...sampleCount {
-            let s = Double(sample) / Double(sampleCount)
-            let point = Self.quadPoint(start: start, control: control, end: end, t: s)
-            let tangent = Self.quadTangent(start: start, control: control, end: end, t: s)
-            let tangentLength = hypot(tangent.x, tangent.y)
-            let normal: CGPoint
-            if tangentLength > 1e-9 {
-                normal = CGPoint(x: -tangent.y / tangentLength, y: tangent.x / tangentLength)
-            } else {
-                normal = CGPoint(x: 0, y: -1)
-            }
-            let width = startWidth + (endWidth - startWidth) * s
-            let half = CGPoint(x: normal.x * width * 0.5, y: normal.y * width * 0.5)
-            leftPoints.append(CGPoint(x: point.x - half.x, y: point.y - half.y))
-            rightPoints.append(CGPoint(x: point.x + half.x, y: point.y + half.y))
-        }
+        let leftPoints = outline.left
+        let rightPoints = outline.right
+        guard let first = leftPoints.first else { return }
 
         var path = Path()
-        path.move(to: transform(leftPoints[0]))
+        path.move(to: transform(first))
         for point in leftPoints.dropFirst() {
             path.addLine(to: transform(point))
         }
@@ -171,23 +148,6 @@ struct PlantRenderer: View {
             )
         )
         context.fill(path, with: .color(color.opacity(0.96)))
-    }
-
-    /// 二次贝塞尔曲线上的点。
-    private static func quadPoint(start: CGPoint, control: CGPoint, end: CGPoint, t: Double) -> CGPoint {
-        let oneMinusT = 1 - t
-        return CGPoint(
-            x: oneMinusT * oneMinusT * start.x + 2 * oneMinusT * t * control.x + t * t * end.x,
-            y: oneMinusT * oneMinusT * start.y + 2 * oneMinusT * t * control.y + t * t * end.y
-        )
-    }
-
-    /// 二次贝塞尔曲线切向量（未归一化；零长曲线由调用方保证不出现）。
-    private static func quadTangent(start: CGPoint, control: CGPoint, end: CGPoint, t: Double) -> CGPoint {
-        CGPoint(
-            x: 2 * (1 - t) * (control.x - start.x) + 2 * t * (end.x - control.x),
-            y: 2 * (1 - t) * (control.y - start.y) + 2 * t * (end.y - control.y)
-        )
     }
 
     private static func stableViewport(for box: CGRect) -> CGRect {

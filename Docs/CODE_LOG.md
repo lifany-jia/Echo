@@ -658,3 +658,45 @@ Commit: `03c672b feat(plant): add wild mode and sound memory`
 
 ### Known risks
 - 本环境无图像输入，未人工目检，视觉以用户确认为准。
+
+---
+
+## 主干附着修复（2026-09-01）
+
+### Files
+- `Sources/Plant/BranchModel.swift`：枝条二次曲线几何（point / prefix / distance / parameter）；PlantStructure 揭示策略（revealedTrunk / shouldReveal / revealedPosition）。
+- `Sources/Plant/PlantGenerator.swift`：一级枝沿主干更低到更高分布；更早长出前 3 根主枝；一级枝近干补叶；删除私有 `point(on:)`。
+- `Sources/Rendering/PlantRenderer.swift`：用 de Casteljau 前缀画部分枝干；子枝/叶在父级未长到挂点前不画；叶位置跟随当前枝条。
+- `SelfTests/Stage4PlantSelfTest.swift`：新增前缀包含原曲线、一级枝贴干、子枝贴父枝、揭示不悬空、叶片跟随断言。
+
+### Design notes
+- 根因：部分生长把二次曲线的终点做成 `lerp(start, end, t)`，控制点虽然近似 de Casteljau 的 Q1，但终点不是 B(t)。弯曲越大，挂点离可见主干越远（诊断：variation 0.9 时 attach@0.5 偏离 lerp 主干 0.064 单位空间）。
+- 正确前缀：Q1=lerp(P0,P1,t)，R1=lerp(P1,P2,t)，B(t)=lerp(Q1,R1,t)。
+- 揭示门控：`attachT <= easedParentFraction + 0.01`，避免高处主枝在主干还没长到时先出现。
+
+### Tests
+- Stage 4 / 5 / 6.5 gesture / wild / sound-tree+audio self-test PASS。
+- `xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build` PASS。
+- 真机目检 NOT RUN。
+
+### Known risks
+- `parameter(closestTo:)` 是采样近似，测试阈值用 0.005–0.008 单位空间，视觉上仍视为贴干。
+
+---
+
+## 主干长高加粗 + 分枝均匀（2026-09-01）
+
+### Files
+- `Sources/Plant/PlantGenerator.swift`：`LiveGrowthParams.duration`；`growTrunk`；同级枝按父枝比例取长；左右交替 + 能量升降偏向；`preferredParent` 把新枝优先长在升降对应的一侧。
+- `Sources/Plant/GrowthSession.swift`：把会话 `profile.duration` 传入生长参数。
+- `Sources/Plant/BranchModel.swift`：`taperedOutline` 单位空间粗细；`itemRevealFraction` / `hostBranchIndex`。
+- `Sources/Rendering/PlantRenderer.swift`：用单位空间轮廓再变换；新枝按出生序号揭示。
+- `SelfTests/Stage4PlantSelfTest.swift`：主干长高加粗、主枝长度均匀、taper 宽度断言。
+
+### Design notes
+- 幼苗会话若不再更新主干，30 秒后仍是 duration=2 的几何。现在每步向当前 duration/energy 的目标主干逼近，只增不减。
+- 旧 taper 把屏幕像素半宽加到单位坐标上，再乘 canvas scale，等效 `thickness * scale²`。
+
+### Tests
+- Stage 4 / 5 / 6.5 tree+audio / gesture PASS。
+- 模拟器 iPhone 16 安装运行：细主干可见。

@@ -666,3 +666,68 @@
 
 ### Commit
 - `feat(design): add echo forest app icon`
+
+---
+
+## 主干附着修复（2026-09-01）
+
+**Status:** DONE（代码层 + 自测 + 模拟器构建；真机视觉 NOT RUN）
+
+### 问题
+- 枝叶有时看起来不长在主干上：渲染器用端点 lerp 截断二次曲线主干，弯曲树的一级枝挂点会离开可见主干。
+- 叶片画在最终终点，枝条还在生长时叶子会悬在空中。
+- 一级枝集中在主干中上段（t≈0.34–0.82），主干下部长时间光秃。
+
+### 修复
+- `BranchModel`：`point(at:)` / de Casteljau `prefix(fraction:)` / `distance(to:)` / `parameter(closestTo:)`。
+- `PlantStructure`：`revealedTrunk`、`shouldReveal`（父枝未长到挂点不画子枝）、`revealedPosition`（叶/花跟随当前枝条）。
+- `PlantRenderer`：按前缀曲线生长主干/枝条，不再 lerp 端点。
+- `PlantGenerator`：一级枝沿主干 t≈0.18–0.88 分布；前 3 根主枝更积极长出；一级枝靠近主干再补一片叶。
+
+### 验证
+- Command: `swiftc … Stage4PlantSelfTest.swift && 执行`
+- Result: PASS（含新增前缀曲线 / 主干附着 / 揭示不悬空 / 叶片跟随）
+- Command: Stage 5 coupling / Stage 6.5 gesture / wild / sound-tree+audio self-test
+- Result: 全部 PASS
+- Command: `cd EchoForest.swiftpm && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build`
+- Result: BUILD SUCCEEDED
+- 真机生长目检：NOT RUN
+
+### 未完成 / 风险
+- 真机上弯曲树/早期生长是否完全贴干，仍需用户目检。
+- 揭示策略仍用 depth 而非每根枝的出生序号；第 3 步之后新枝会整段出现，但会挂在已长完的父枝上。
+
+### Commit
+- `fix(plant): keep growing foliage attached to the visible trunk`
+
+---
+
+## 主干长高加粗 + 分枝均匀（2026-09-01）
+
+**Status:** DONE（自测 PASS + 模拟器构建安装；iPhone 16 生长截图可见细主干，不再是绿团）
+
+### 问题
+- 实时会话主干停在幼苗几何，不会随时长/能量继续长高、变粗。
+- 同级枝长度随瞬时能量和随机数差太多，延伸时一根猛冲、一根几乎不动。
+- taper 把 `thickness * canvasScale` 当成单位坐标再变换，整棵树被二次放大涂成一团绿。
+
+### 修复
+- `growTrunk`：每步只增不减地长高（最多 +0.045）和加粗（最多 +0.008），并把已有枝/叶一起平移，避免脱节。
+- 高度映射改为 `0.36 + 0.38·duration + 0.42·centroid`，长会话能明显长高。
+- 同级枝长度按父枝比例（约 0.40–0.58），随机抖动收紧到 10%；左右交替 + 能量升降只做偏向。
+- 新枝按出生序号向外长，避免同深度旧枝已经长完时新枝突然整段出现。
+- taper 轮廓只在单位空间用 `thickness` 偏移。
+
+### 验证
+- Stage 4：PASS（含主干长高加粗、同级主枝长度比 < 1.65、taper 宽度=thickness）
+- Stage 5 coupling：PASS
+- Stage 6.5 sound-tree + gesture：PASS
+- `xcodebuild` iPhone 17 simulator：BUILD SUCCEEDED
+- iPhone 16 安装 + Wild 脚本生长：画布可见贴底细主干和两侧分枝，不再铺满绿团
+
+### 未完成 / 风险
+- iPhone 17 / iOS 27 模拟器本机不稳定（boot 后会 Shutdown），本次 runtime 用 iPhone 16 / iOS 18.5。
+- 真机目检 NOT RUN。
+
+### Commit
+- `fix(plant): grow trunk over time and even out branch lengths`

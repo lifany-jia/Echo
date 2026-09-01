@@ -174,7 +174,8 @@ struct GrowthSession: Equatable {
             variation: smoothedVariation,
             energySlope: energySlope,
             lengthMultiplier: lengthMultiplierValue,
-            flowerSizeMultiplier: flowerSizeMultiplierValue
+            flowerSizeMultiplier: flowerSizeMultiplierValue,
+            duration: plant.profile.duration
         )
     }
 

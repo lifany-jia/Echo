@@ -166,6 +166,130 @@ struct Stage4PlantSelfTest {
         expect(countsFull.branches >= countsStart.branches, "visible branch count should not decrease")
         expect(countsFull.leaves >= countsStart.leaves, "visible leaf count should not decrease")
 
+        // 14. 二次曲线前缀必须覆盖原曲线 0...fraction 的点（de Casteljau，禁止用端点 lerp）。
+        let curved = PlantGenerator.structure(profile: profile(variation: 0.9), seed: 7)
+        let prefix = curved.trunk.prefix(fraction: 0.6)
+        for index in 0...12 {
+            let t = 0.6 * Double(index) / 12
+            expect(
+                prefix.distance(to: curved.trunk.point(at: t)) < 1e-5,
+                "trunk prefix at 0.6 must contain original curve point t=\(String(format: "%.2f", t))"
+            )
+        }
+        expect(
+            prefix.distance(to: curved.trunk.point(at: 0.95)) > 1e-3,
+            "trunk prefix at 0.6 must not include the far trunk tip"
+        )
+
+        // 15. 一级枝必须挂在主干曲线上；子枝必须挂在父枝曲线上。
+        expect(!curved.branches.filter { $0.depth == 1 }.isEmpty, "curved tree should grow primary branches")
+        for branch in curved.branches where branch.depth == 1 {
+            expect(curved.trunk.distance(to: branch.start) < 0.005, "primary branch must start on the trunk curve")
+        }
+        for branch in curved.branches where branch.depth > 1 {
+            if let parentIndex = branch.parentIndex, curved.branches.indices.contains(parentIndex) {
+                expect(
+                    curved.branches[parentIndex].distance(to: branch.start) < 0.005,
+                    "child branch must start on its parent curve"
+                )
+            } else {
+                expect(false, "child branch must have a valid parent")
+            }
+        }
+
+        // 16. 生长揭示：已经画出来的一级枝必须落在当前主干前缀上，不能悬空。
+        var sawRevealedPrimary = false
+        for steps in [0.5, 1.0, 1.5, 2.0, 3.0, 8.0] {
+            let revealedTrunk = curved.revealedTrunk(steps: steps)
+            let revealedPrimaries = curved.branches.filter { $0.depth == 1 && curved.shouldReveal($0, steps: steps) }
+            if steps >= 1 { sawRevealedPrimary = sawRevealedPrimary || !revealedPrimaries.isEmpty }
+            expect(
+                steps < 1 || !revealedPrimaries.isEmpty,
+                "growing trunk at step \(steps) should already show at least one primary branch"
+            )
+            for branch in revealedPrimaries {
+                expect(
+                    revealedTrunk.distance(to: branch.start) < 0.008,
+                    "revealed primary must sit on the revealed trunk at step \(steps)"
+                )
+            }
+        }
+        expect(sawRevealedPrimary, "some primary branches must become visible during growth")
+        expect(
+            curved.branches.filter { $0.depth == 1 }.allSatisfy { curved.shouldReveal($0, steps: .infinity) },
+            "fully revealed tree must show every primary branch"
+        )
+
+        // 17. 叶片必须跟所在枝条的当前尖端，不能提前出现在未长到的终点。
+        let earlyLeaves = curved.events.filter { $0.type == .leaf && curved.shouldReveal($0, steps: 1.0) }
+        expect(!earlyLeaves.isEmpty, "at least one leaf should appear with the first primary")
+        for event in earlyLeaves {
+            let position = curved.revealedPosition(for: event, steps: 1.0)
+            let revealedTrunk = curved.revealedTrunk(steps: 1.0)
+            var nearest = revealedTrunk.distance(to: position)
+            for branch in curved.branches where curved.shouldReveal(branch, steps: 1.0) {
+                nearest = min(nearest, branch.prefix(fraction: PlantStructure.revealFraction(depth: branch.depth, step: 1.0)).distance(to: position))
+            }
+            expect(nearest < 0.08, "revealed leaf must stay on the currently grown branch, not float ahead of it")
+        }
+
+        // 18. taper 轮廓必须在单位空间使用 thickness，不能把画布像素再乘进去。
+        let tape = BranchModel(
+            start: CGPoint(x: 0, y: 0),
+            end: CGPoint(x: 1, y: 0),
+            control: CGPoint(x: 0.5, y: 0),
+            thickness: 0.08,
+            depth: 0,
+            parentIndex: nil,
+            curvature: 0
+        )
+        let outline = tape.taperedOutline(fraction: 1, endThicknessFactor: 1)
+        expect(outline.left.count > 2 && outline.right.count == outline.left.count, "taper outline should sample both sides")
+        let startWidth = hypot(
+            outline.left[0].x - outline.right[0].x,
+            outline.left[0].y - outline.right[0].y
+        )
+        expect(abs(startWidth - 0.08) < 0.003, "taper width must equal unit-space thickness, not thickness * canvas scale")
+        expect(startWidth < 0.2, "taper must stay a thin branch in unit space")
+        let generatedTrunk = curved.trunk.taperedOutline(fraction: 1, endThicknessFactor: 0.18)
+        let trunkWidth = hypot(
+            generatedTrunk.left[0].x - generatedTrunk.right[0].x,
+            generatedTrunk.left[0].y - generatedTrunk.right[0].y
+        )
+        expect(abs(trunkWidth - curved.trunk.thickness) < 0.004, "generated trunk outline width must match trunk thickness")
+        expect(trunkWidth < 0.25, "generated trunk must not fill the unit canvas like a blob")
+
+        // 19. 实时会话：主干必须随时长/能量继续长高、变粗，而不是停在幼苗尺寸。
+        var live = PlantGenerator.initialStructure(profile: PlantGenerator.seedlingProfile, seed: 21)
+        let startHeight = live.trunk.start.y - live.trunk.end.y
+        let startThickness = live.trunk.thickness
+        for step in 1...20 {
+            PlantGenerator.appendGrowthStep(
+                to: &live,
+                params: PlantGenerator.LiveGrowthParams(
+                    energy: 0.72,
+                    centroid01: 0.62,
+                    variation: 0.4,
+                    energySlope: step.isMultiple(of: 2) ? 0.08 : -0.08,
+                    duration: Double(step) * 1.1
+                ),
+                seed: 21,
+                stepIndex: step
+            )
+        }
+        let grownHeight = live.trunk.start.y - live.trunk.end.y
+        expect(grownHeight > startHeight * 1.18, "long energetic session should grow a taller trunk")
+        expect(live.trunk.thickness > startThickness * 1.12, "long energetic session should grow a thicker trunk")
+
+        // 20. 同级主枝长度应接近，避免一根猛冲、一根几乎不动。
+        let primaryLengths = live.branches.filter { $0.depth == 1 }.map {
+            hypot($0.end.x - $0.start.x, $0.end.y - $0.start.y)
+        }
+        expect(primaryLengths.count >= 3, "live tree should grow several primary branches")
+        if let shortest = primaryLengths.min(), let longest = primaryLengths.max(), shortest > 0 {
+            expect(longest / shortest < 1.65, "primary branch lengths should stay even enough to look natural")
+        }
+
         if failures.isEmpty {
             print("Stage 4 plant generator self-test PASS")
         } else {
