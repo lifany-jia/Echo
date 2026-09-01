@@ -166,6 +166,73 @@ struct Stage4PlantSelfTest {
         expect(countsFull.branches >= countsStart.branches, "visible branch count should not decrease")
         expect(countsFull.leaves >= countsStart.leaves, "visible leaf count should not decrease")
 
+        // 14. 二次曲线前缀必须覆盖原曲线 0...fraction 的点（de Casteljau，禁止用端点 lerp）。
+        let curved = PlantGenerator.structure(profile: profile(variation: 0.9), seed: 7)
+        let prefix = curved.trunk.prefix(fraction: 0.6)
+        for index in 0...12 {
+            let t = 0.6 * Double(index) / 12
+            expect(
+                prefix.distance(to: curved.trunk.point(at: t)) < 1e-5,
+                "trunk prefix at 0.6 must contain original curve point t=\(String(format: "%.2f", t))"
+            )
+        }
+        expect(
+            prefix.distance(to: curved.trunk.point(at: 0.95)) > 1e-3,
+            "trunk prefix at 0.6 must not include the far trunk tip"
+        )
+
+        // 15. 一级枝必须挂在主干曲线上；子枝必须挂在父枝曲线上。
+        expect(!curved.branches.filter { $0.depth == 1 }.isEmpty, "curved tree should grow primary branches")
+        for branch in curved.branches where branch.depth == 1 {
+            expect(curved.trunk.distance(to: branch.start) < 0.005, "primary branch must start on the trunk curve")
+        }
+        for branch in curved.branches where branch.depth > 1 {
+            if let parentIndex = branch.parentIndex, curved.branches.indices.contains(parentIndex) {
+                expect(
+                    curved.branches[parentIndex].distance(to: branch.start) < 0.005,
+                    "child branch must start on its parent curve"
+                )
+            } else {
+                expect(false, "child branch must have a valid parent")
+            }
+        }
+
+        // 16. 生长揭示：已经画出来的一级枝必须落在当前主干前缀上，不能悬空。
+        var sawRevealedPrimary = false
+        for steps in [0.5, 1.0, 1.5, 2.0, 3.0, 8.0] {
+            let revealedTrunk = curved.revealedTrunk(steps: steps)
+            let revealedPrimaries = curved.branches.filter { $0.depth == 1 && curved.shouldReveal($0, steps: steps) }
+            if steps >= 1 { sawRevealedPrimary = sawRevealedPrimary || !revealedPrimaries.isEmpty }
+            expect(
+                steps < 1 || !revealedPrimaries.isEmpty,
+                "growing trunk at step \(steps) should already show at least one primary branch"
+            )
+            for branch in revealedPrimaries {
+                expect(
+                    revealedTrunk.distance(to: branch.start) < 0.008,
+                    "revealed primary must sit on the revealed trunk at step \(steps)"
+                )
+            }
+        }
+        expect(sawRevealedPrimary, "some primary branches must become visible during growth")
+        expect(
+            curved.branches.filter { $0.depth == 1 }.allSatisfy { curved.shouldReveal($0, steps: .infinity) },
+            "fully revealed tree must show every primary branch"
+        )
+
+        // 17. 叶片必须跟所在枝条的当前尖端，不能提前出现在未长到的终点。
+        let earlyLeaves = curved.events.filter { $0.type == .leaf && curved.shouldReveal($0, steps: 1.0) }
+        expect(!earlyLeaves.isEmpty, "at least one leaf should appear with the first primary")
+        for event in earlyLeaves {
+            let position = curved.revealedPosition(for: event, steps: 1.0)
+            let revealedTrunk = curved.revealedTrunk(steps: 1.0)
+            var nearest = revealedTrunk.distance(to: position)
+            for branch in curved.branches where curved.shouldReveal(branch, steps: 1.0) {
+                nearest = min(nearest, branch.prefix(fraction: PlantStructure.revealFraction(depth: branch.depth, step: 1.0)).distance(to: position))
+            }
+            expect(nearest < 0.08, "revealed leaf must stay on the currently grown branch, not float ahead of it")
+        }
+
         if failures.isEmpty {
             print("Stage 4 plant generator self-test PASS")
         } else {

@@ -666,3 +666,36 @@
 
 ### Commit
 - `feat(design): add echo forest app icon`
+
+---
+
+## 主干附着修复（2026-09-01）
+
+**Status:** DONE（代码层 + 自测 + 模拟器构建；真机视觉 NOT RUN）
+
+### 问题
+- 枝叶有时看起来不长在主干上：渲染器用端点 lerp 截断二次曲线主干，弯曲树的一级枝挂点会离开可见主干。
+- 叶片画在最终终点，枝条还在生长时叶子会悬在空中。
+- 一级枝集中在主干中上段（t≈0.34–0.82），主干下部长时间光秃。
+
+### 修复
+- `BranchModel`：`point(at:)` / de Casteljau `prefix(fraction:)` / `distance(to:)` / `parameter(closestTo:)`。
+- `PlantStructure`：`revealedTrunk`、`shouldReveal`（父枝未长到挂点不画子枝）、`revealedPosition`（叶/花跟随当前枝条）。
+- `PlantRenderer`：按前缀曲线生长主干/枝条，不再 lerp 端点。
+- `PlantGenerator`：一级枝沿主干 t≈0.18–0.88 分布；前 3 根主枝更积极长出；一级枝靠近主干再补一片叶。
+
+### 验证
+- Command: `swiftc … Stage4PlantSelfTest.swift && 执行`
+- Result: PASS（含新增前缀曲线 / 主干附着 / 揭示不悬空 / 叶片跟随）
+- Command: Stage 5 coupling / Stage 6.5 gesture / wild / sound-tree+audio self-test
+- Result: 全部 PASS
+- Command: `cd EchoForest.swiftpm && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme EchoForest -destination 'platform=iOS Simulator,name=iPhone 17' build`
+- Result: BUILD SUCCEEDED
+- 真机生长目检：NOT RUN
+
+### 未完成 / 风险
+- 真机上弯曲树/早期生长是否完全贴干，仍需用户目检。
+- 揭示策略仍用 depth 而非每根枝的出生序号；第 3 步之后新枝会整段出现，但会挂在已长完的父枝上。
+
+### Commit
+- `fix(plant): keep growing foliage attached to the visible trunk`

@@ -62,8 +62,8 @@ struct PlantRenderer: View {
             )
 
             // 主干从基部向上生长：起始是一株小苗（约 35%），随 revealSteps 拔高到完整。
-            // 底部粗、向上收细。
-            let trunkFraction = min(max(0.35 + 0.65 * (revealSteps / 3), 0), 1)
+            // 底部粗、向上收细。用原曲线前缀生长，保证枝叶挂点始终落在可见主干上。
+            let trunkFraction = structure.revealedTrunkFraction(steps: revealSteps)
             Self.strokeTaperedBranch(
                 structure.trunk,
                 fraction: trunkFraction,
@@ -75,8 +75,8 @@ struct PlantRenderer: View {
             )
 
             for branch in structure.branches {
+                guard structure.shouldReveal(branch, steps: revealSteps) else { continue }
                 let fraction = Self.revealFraction(depth: branch.depth, step: revealSteps)
-                guard fraction > 0 else { continue }
                 Self.strokeTaperedBranch(
                     branch,
                     fraction: fraction,
@@ -89,9 +89,11 @@ struct PlantRenderer: View {
             }
 
             for event in structure.events {
+                guard structure.shouldReveal(event, steps: revealSteps) else { continue }
                 let fraction = Self.revealFraction(depth: event.depth, step: revealSteps)
-                guard fraction > 0 else { continue }
-                Self.drawEvent(event, fraction: fraction, transform: transform, scale: scale, in: &context)
+                var moving = event
+                moving.position = structure.revealedPosition(for: event, steps: revealSteps)
+                Self.drawEvent(moving, fraction: fraction, transform: transform, scale: scale, in: &context)
             }
         }
         .accessibilityLabel("声音长成的植物")
@@ -99,12 +101,11 @@ struct PlantRenderer: View {
 
     /// 分支/事件的出现进度：depth 的分支在 step=depth-1 时开始出现，step=depth 时完成。
     static func revealFraction(depth: Int, step: Double) -> Double {
-        let raw = step - Double(depth - 1)
-        return min(max(raw, 0), 1)
+        PlantStructure.revealFraction(depth: depth, step: step)
     }
 
     private static func easeOut(_ value: Double) -> Double {
-        1 - pow(1 - value, 3)
+        PlantStructure.easeOut(value)
     }
 
     /// 把一条二次曲线枝画成“从粗到细”的填充形状：
@@ -119,16 +120,10 @@ struct PlantRenderer: View {
         endThicknessFactor: Double,
         in context: inout GraphicsContext
     ) {
-        let t = easeOut(fraction)
-        let start = branch.start
-        let end = CGPoint(
-            x: start.x + (branch.end.x - start.x) * t,
-            y: start.y + (branch.end.y - start.y) * t
-        )
-        let control = CGPoint(
-            x: start.x + (branch.control.x - start.x) * t,
-            y: start.y + (branch.control.y - start.y) * t
-        )
+        let grown = branch.prefix(fraction: easeOut(fraction))
+        let start = grown.start
+        let end = grown.end
+        let control = grown.control
 
         let startWidth = max(branch.thickness * scale, 0.6)
         let endWidth = max(branch.thickness * endThicknessFactor * scale, 0.45)

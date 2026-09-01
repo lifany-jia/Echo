@@ -197,13 +197,15 @@ enum PlantGenerator {
         let parent: BranchModel
         let parentIndex: Int?
         let start: CGPoint
-        if (forceNewPrimary || primaryIndices.count < targetPrimaryCount)
-            && (primaryIndices.isEmpty || forceNewPrimary || stepIndex.isMultiple(of: 3)) {
+        let wantPrimary = primaryIndices.count < targetPrimaryCount
+        if (forceNewPrimary || wantPrimary)
+            && (primaryIndices.isEmpty || forceNewPrimary || primaryIndices.count < 3 || stepIndex.isMultiple(of: 2)) {
             tier = 1
             parent = structure.trunk
             parentIndex = nil
             let trunkSlot = Double(primaryIndices.count) / Double(max(targetPrimaryCount - 1, 1))
-            start = point(on: structure.trunk, t: 0.34 + trunkSlot * 0.48 + (random.double01() - 0.5) * 0.04)
+            // 沿主干从较低处铺到接近树冠，避免枝叶只挤在中上段。
+            start = structure.trunk.point(at: 0.18 + trunkSlot * 0.70 + (random.double01() - 0.5) * 0.04)
         } else if shouldGrowSecondary(
             primaryCount: primaryIndices.count,
             secondaryCount: secondaryIndices.count,
@@ -214,7 +216,7 @@ enum PlantGenerator {
             parent = structure.branches[selectedParentIndex]
             parentIndex = selectedParentIndex
             let childCount = childrenCount(of: selectedParentIndex, in: structure)
-            start = point(on: parent, t: 0.48 + min(Double(childCount) * 0.18, 0.42) + (random.double01() - 0.5) * 0.05)
+            start = parent.point(at: 0.48 + min(Double(childCount) * 0.18, 0.42) + (random.double01() - 0.5) * 0.05)
         } else if twigIndices.count < maxTerminalTwigs {
             tier = 3
             let candidates = secondaryIndices.isEmpty ? primaryIndices : secondaryIndices
@@ -222,7 +224,7 @@ enum PlantGenerator {
             parent = structure.branches[selectedParentIndex]
             parentIndex = selectedParentIndex
             let childCount = childrenCount(of: selectedParentIndex, in: structure)
-            start = point(on: parent, t: 0.58 + min(Double(childCount) * 0.11, 0.34) + (random.double01() - 0.5) * 0.04)
+            start = parent.point(at: 0.58 + min(Double(childCount) * 0.11, 0.34) + (random.double01() - 0.5) * 0.04)
         } else {
             return
         }
@@ -301,6 +303,22 @@ enum PlantGenerator {
                     type: .leaf,
                     position: leafPosition,
                     size: 0.020 + energy * 0.026,
+                    depth: tier
+                )
+            )
+            structure.metadata.leafCount += 1
+        }
+        // 主干附近再补一片叶，避免只有末梢有绿、主干长时间光秃。
+        if tier == 1 && structure.metadata.leafCount < maxLeaves {
+            let nearTrunk = child.point(at: 0.18 + random.double01() * 0.10)
+            structure.events.append(
+                PlantEvent(
+                    type: .leaf,
+                    position: CGPoint(
+                        x: nearTrunk.x + (random.double01() - 0.5) * 0.018,
+                        y: nearTrunk.y - 0.008
+                    ),
+                    size: 0.016 + energy * 0.018,
                     depth: tier
                 )
             )
@@ -484,19 +502,6 @@ enum PlantGenerator {
             0
         ), 1)
         return distance(point, CGPoint(x: trunk.start.x + t * dx, y: trunk.start.y + t * dy))
-    }
-
-    private static func point(on branch: BranchModel, t rawT: Double) -> CGPoint {
-        let t = min(max(rawT, 0), 1)
-        let oneMinusT = 1 - t
-        return CGPoint(
-            x: oneMinusT * oneMinusT * branch.start.x
-                + 2 * oneMinusT * t * branch.control.x
-                + t * t * branch.end.x,
-            y: oneMinusT * oneMinusT * branch.start.y
-                + 2 * oneMinusT * t * branch.control.y
-                + t * t * branch.end.y
-        )
     }
 
     private static func finite(_ value: Double, fallback: Double) -> Double {
